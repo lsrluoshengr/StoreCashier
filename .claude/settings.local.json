@@ -30,7 +30,15 @@
       "Bash(cmd.exe /c \"cd /d D:\\java\\android\\StoreCashier && gradlew.bat assembleDebug\":*)",
       "mcp__context7__resolve-library-id",
       "WebFetch(domain:repo1.maven.org)",
-      "Bash(cmd.exe /c \"cd /d D:\\java\\android\\StoreCashier && gradlew.bat clean assembleDebug\":*)"
+      "Bash(cmd.exe /c \"cd /d D:\\java\\android\\StoreCashier && gradlew.bat clean assembleDebug\":*)",
+      "WebSearch",
+      "Bash(powershell.exe:*)",
+      "Bash(git checkout:*)",
+      "Bash(cd /D D:javaandroidStoreCashier)",
+      "Bash(bash gradlew.bat:*)",
+      "Bash(gradlew clean:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

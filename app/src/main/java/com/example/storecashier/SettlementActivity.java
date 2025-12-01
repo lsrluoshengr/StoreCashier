@@ -2,6 +2,7 @@ package com.example.storecashier;
 
 import android.Manifest;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -15,16 +16,18 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.activity.result.ActivityResultLauncher;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
+import com.journeyapps.barcodescanner.CaptureActivity;
 import java.util.ArrayList;
 import java.util.List;
 
 public class SettlementActivity extends AppCompatActivity {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 200;
+    // 扫码请求码
+    private static final int SCAN_REQUEST_CODE = 2001;
+
     private Button btnScanSettlement, btnClearSettlement, btnConfirmSettlement;
     private ListView lvSettlementList;
     private TextView tvTotalPrice;
@@ -34,14 +37,6 @@ public class SettlementActivity extends AppCompatActivity {
     private List<CartItem> settlementList = new ArrayList<>();
     private SettlementAdapter settlementAdapter;
     private double totalPrice = 0.0; // 总价
-
-    // 扫码回调
-    private final ActivityResultLauncher<ScanOptions> barcodeLauncher = registerForActivityResult(new ScanContract(), result -> {
-        if (result != null && result.getContents() != null) {
-            String barcode = result.getContents();
-            queryProductAndAddToSettlement(barcode); // 扫码后查询商品并添加到结算清单
-        }
-    });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,12 +102,30 @@ public class SettlementActivity extends AppCompatActivity {
     }
 
     // 启动扫码
+    // 直接构造 Intent 启动扫码（绕开所有不存在的方法）
     private void startScan() {
-        ScanOptions scanOptions = new ScanOptions();
-        scanOptions.setPrompt("请对准商品条形码扫码");
-        scanOptions.setBeepEnabled(true);
-        scanOptions.setOrientationLocked(true);
-        barcodeLauncher.launch(scanOptions);
+        Intent scanIntent = new Intent(this, CaptureActivity.class);
+        // 扫码参数配置
+        scanIntent.putExtra("PROMPT_MESSAGE", "请对准商品条形码扫码");
+        scanIntent.putExtra("BEEP_ENABLED", true);
+        scanIntent.putExtra("ORIENTATION_LOCKED", true);
+        // 启用单次扫码模式，扫码完成后关闭相机并返回结果
+        scanIntent.putExtra("CONTINUOUS_SCAN", false);
+        scanIntent.putExtra("SINGLE_SCAN", true);
+        // 启动扫码
+        startActivityForResult(scanIntent, SCAN_REQUEST_CODE);
+    }
+
+    // 直接从 Intent 获取结果（4.3.0版本唯一可靠方式）
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SCAN_REQUEST_CODE && resultCode == RESULT_OK) {
+            String barcode = data.getStringExtra("SCAN_RESULT");
+            if (barcode != null) {
+                queryProductAndAddToSettlement(barcode);
+            }
+        }
     }
 
     // 权限申请结果回调

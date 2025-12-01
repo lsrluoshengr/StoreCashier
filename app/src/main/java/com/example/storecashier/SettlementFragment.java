@@ -1,7 +1,9 @@
 package com.example.storecashier;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -19,19 +21,16 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
-import com.google.zxing.BarcodeFormat;
-import com.journeyapps.barcodescanner.BarcodeCallback;
-import com.journeyapps.barcodescanner.BarcodeResult;
-import com.journeyapps.barcodescanner.BarcodeView;
-import com.journeyapps.barcodescanner.DefaultDecoderFactory;
+import com.journeyapps.barcodescanner.CaptureActivity;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 public class SettlementFragment extends Fragment {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 200;
+    // 扫码请求码
+    private static final int SCAN_REQUEST_CODE = 2001;
+
     private Button btnScanSettlement, btnClearSettlement, btnConfirmSettlement;
     private ListView lvSettlementList;
     private TextView tvTotalPrice;
@@ -41,9 +40,6 @@ public class SettlementFragment extends Fragment {
     private List<CartItem> settlementList = new ArrayList<>();
     private SettlementAdapter settlementAdapter;
     private double totalPrice = 0.0; // 总价
-
-    // 扫码相关
-    private BarcodeView barcodeView;
 
     @Nullable
     @Override
@@ -66,9 +62,6 @@ public class SettlementFragment extends Fragment {
         settlementAdapter = new SettlementAdapter();
         lvSettlementList.setAdapter(settlementAdapter);
         updateTotalPrice(); // Update total price display
-
-        // 初始化扫码预览
-        initBarcodeView(view);
 
         return view;
     }
@@ -114,56 +107,40 @@ public class SettlementFragment extends Fragment {
         btnConfirmSettlement.setOnClickListener(v -> confirmSettlement());
     }
 
-    // 初始化扫码视图
-    private void initBarcodeView(View view) {
-        barcodeView = new BarcodeView(requireContext());
-        ViewGroup previewContainer = view.findViewById(R.id.scan_preview_container);
-        previewContainer.addView(barcodeView);
-
-        // 设置解码器工厂
-        Collection<BarcodeFormat> formats = Arrays.asList(BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.CODE_128);
-        barcodeView.setDecoderFactory(new DefaultDecoderFactory(formats));
-
-        // 设置扫码回调 - 连续扫码模式
-        final BarcodeCallback barcodeCallback = new BarcodeCallback() {
-            @Override
-            public void barcodeResult(BarcodeResult result) {
-                if (result != null && !result.getText().isEmpty()) {
-                    String barcode = result.getText();
-                    // 直接添加商品，不关闭摄像头
-                    queryProductAndAddToSettlement(barcode);
-                    // 重新启动扫码以实现连续扫描
-                    barcodeView.decodeSingle(this);
-                }
-            }
-
-            @Override
-            public void possibleResultPoints(List<com.google.zxing.ResultPoint> resultPoints) {
-                // 可以添加扫码点动画
-            }
-        };
-
-        // 启动首次扫码
-        barcodeView.decodeSingle(barcodeCallback);
-    }
-
     // 检查相机权限并扫码
     private void checkCameraPermissionAndScan() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
-            // 申请相机权限
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
-        } else {
+                == PackageManager.PERMISSION_GRANTED) {
             startScan();
+        } else {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
         }
     }
 
-    // 启动扫码
+    // 直接构造 Intent 启动扫码（绕开所有不存在的方法）
     private void startScan() {
-        ViewGroup previewContainer = requireView().findViewById(R.id.scan_preview_container);
-        previewContainer.setVisibility(View.VISIBLE);
-        btnScanSettlement.setVisibility(View.GONE);
-        barcodeView.resume();
+        Intent scanIntent = new Intent(requireActivity(), CaptureActivity.class);
+        // 扫码参数配置
+        scanIntent.putExtra("PROMPT_MESSAGE", "请对准商品条形码扫码");
+        scanIntent.putExtra("BEEP_ENABLED", true);
+        scanIntent.putExtra("ORIENTATION_LOCKED", true);
+        // 启用单次扫码模式，扫码完成后关闭相机并返回结果
+        scanIntent.putExtra("CONTINUOUS_SCAN", false);
+        scanIntent.putExtra("SINGLE_SCAN", true);
+        // 启动扫码
+        startActivityForResult(scanIntent, SCAN_REQUEST_CODE);
+    }
+
+    // 直接从 Intent 获取结果（4.3.0版本唯一可靠方式）
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SCAN_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            String barcode = data.getStringExtra("SCAN_RESULT");
+            if (barcode != null) {
+                queryProductAndAddToSettlement(barcode);
+            }
+        }
     }
 
     // 权限申请结果回调
@@ -289,17 +266,11 @@ public class SettlementFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        if (barcodeView != null && requireView().findViewById(R.id.scan_preview_container).getVisibility() == View.VISIBLE) {
-            barcodeView.resume();
-        }
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        if (barcodeView != null) {
-            barcodeView.pause();
-        }
     }
 
     // 结算清单适配器（更新为显示购物车项：包含数量和单项总价）

@@ -10,7 +10,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.StoreCashier">
+        android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -23,6 +23,12 @@
         <activity android:name=".AddProductActivity" />
         <activity android:name=".InventoryActivity" />
         <activity android:name=".SettlementActivity" />
+        <!-- 添加ZXing的CaptureActivity并设置为全屏 -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar.FullScreen"
+            android:screenOrientation="portrait"
+            tools:replace="android:theme,android:screenOrientation" />
 
     </application>
     <!-- 相机权限（扫码必需） -->
