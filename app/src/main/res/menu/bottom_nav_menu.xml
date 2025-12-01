@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_settlement"
+        android:icon="@drawable/ic_scan"
+        android:title="扫码结算"/>
+    <item
+        android:id="@+id/nav_add_product"
+        android:icon="@drawable/ic_add_product"
+        android:title="添加商品"/>
+    <item
+        android:id="@+id/nav_inventory"
+        android:icon="@drawable/ic_inventory"
+        android:title="库存管理"/>
+    <item
+        android:id="@+id/nav_settings"
+        android:icon="@drawable/ic_settings"
+        android:title="设置"/>
+</menu>

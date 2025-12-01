@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(.\\gradlew assembleDebug:*)",
+      "Bash(gradlew.bat assembleDebug:*)",
+      "Bash(./gradlew.bat assembleDebug:*)",
+      "Bash(gradlew build:*)",
+      "Bash(dir:*)",
+      "Bash(echo:*)",
+      "Bash(./gradlew:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(xargs:*)",
+      "Bash(__NEW_LINE__ java -version)",
+      "Bash(gradle:*)",
+      "Bash(__NEW_LINE__ ./gradlew --version)",
+      "Bash(__NEW_LINE__ grep -A 20 \"public BarcodeView\" ~/.gradle/caches/modules-2/files-2.1/com.journeyapps/zxing-android-embedded/3.6.0/*/*.class)",
+      "Bash(__NEW_LINE__ rm -rf gradle gradlew gradlew.bat)",
+      "Bash(unzip:*)",
+      "Bash(./gradle-7.6.2/bin/gradle clean build:*)",
+      "Bash(./gradle-7.6.2/bin/gradle:*)",
+      "Bash(java:*)",
+      "Bash(./gradle-8.3/bin/gradle clean build:*)",
+      "Bash(curl:*)",
+      "Bash(.\\gradle-7.6.2\\bin\\gradle clean build:*)",
+      "Bash(mkdir:*)",
+      "Bash(cmd.exe /c gradlew.bat:*)",
+      "Bash(gradlew assembleDebug:*)",
+      "Bash(cmd.exe /c \"cd /d D:\\java\\android\\StoreCashier && gradlew.bat assembleDebug\":*)",
+      "mcp__context7__resolve-library-id",
+      "WebFetch(domain:repo1.maven.org)",
+      "Bash(cmd.exe /c \"cd /d D:\\java\\android\\StoreCashier && gradlew.bat clean assembleDebug\":*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
