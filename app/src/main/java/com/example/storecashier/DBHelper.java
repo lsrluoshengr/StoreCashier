@@ -5,15 +5,19 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import java.util.ArrayList;
-import java.util.List;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import android.os.Environment;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.FileReader;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 
 public class DBHelper extends SQLiteOpenHelper {
@@ -201,6 +205,53 @@ public class DBHelper extends SQLiteOpenHelper {
         }
     }
 
+    // 导出商品数据到Download/Cashier目录
+    public boolean exportProductsToJson(Context context) {
+        try {
+            // 创建Gson实例
+            Gson gson = new Gson();
+
+            // 获取所有商品数据
+            List<Product> allProducts = getAllProducts();
+
+            // 生成以当前日期为名称的文件名（格式：yyyy-MM-dd.json）
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            String fileName = sdf.format(new Date()) + ".json";
+
+            File exportFile;
+
+            // 处理不同Android版本的文件保存路径
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                // Android 10+ 使用MediaStore API，这里简化处理，仍使用旧路径但添加权限标记
+                File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File cashierDir = new File(downloadDir, "Cashier");
+                if (!cashierDir.exists()) {
+                    cashierDir.mkdirs();
+                }
+                exportFile = new File(cashierDir, fileName);
+            } else {
+                // Android 10以下直接使用旧路径
+                File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                File cashierDir = new File(downloadDir, "Cashier");
+                if (!cashierDir.exists()) {
+                    cashierDir.mkdirs();
+                }
+                exportFile = new File(cashierDir, fileName);
+            }
+
+            // 将商品列表转换为JSON并写入文件
+            try (FileWriter writer = new FileWriter(exportFile)) {
+                gson.toJson(allProducts, writer);
+                writer.flush();
+            }
+
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     // 4. 获取所有商品（库存管理页面展示）
     public List<Product> getAllProducts() {
         List<Product> productList = new ArrayList<>();
@@ -227,5 +278,66 @@ public class DBHelper extends SQLiteOpenHelper {
         cursor.close();
         db.close();
         return productList;
+    }
+
+    // 5. 根据条形码删除商品
+    public boolean deleteProduct(String barcode) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int rowsAffected = db.delete(TABLE_PRODUCT, KEY_BARCODE + " = ?", new String[]{barcode});
+        db.close();
+        return rowsAffected > 0;
+    }
+
+    // 6. 根据ID删除商品
+    public boolean deleteProductById(int id) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int rowsAffected = db.delete(TABLE_PRODUCT, KEY_ID + " = ?", new String[]{String.valueOf(id)});
+        db.close();
+        return rowsAffected > 0;
+    }
+
+    // 导入商品数据从JSON文件（支持用户选择文件）
+    public boolean importProductsFromJson(File jsonFile) {
+        try {
+            return importProductsFromReader(new FileReader(jsonFile));
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // 从Reader导入商品数据（更灵活，支持ContentResolver）
+    public boolean importProductsFromReader(Reader reader) {
+        try {
+            // 创建Gson实例并设置为 lenient 模式，以处理可能的格式问题
+            Gson gson = new GsonBuilder()
+                    .setLenient()
+                    .create();
+
+            // 将JSON内容转换为商品列表
+            Type productListType = new TypeToken<List<Product>>(){}.getType();
+            List<Product> importedProducts = gson.fromJson(reader, productListType);
+
+            // 清空当前商品表
+            SQLiteDatabase db = this.getWritableDatabase();
+            db.delete(TABLE_PRODUCT, null, null);
+
+            // 插入导入的商品数据
+            for (Product product : importedProducts) {
+                ContentValues values = new ContentValues();
+                values.put(KEY_BARCODE, product.getBarcode());
+                values.put(KEY_NAME, product.getName());
+                values.put(KEY_PRICE, product.getPrice());
+                values.put(KEY_STOCK, product.getStock());
+
+                db.insert(TABLE_PRODUCT, null, values);
+            }
+
+            db.close();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }

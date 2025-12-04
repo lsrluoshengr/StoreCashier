@@ -13,7 +13,8 @@
         android:text="商品录入"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:layout_marginBottom="30dp"/>
+        android:layout_marginBottom="30dp"
+        android:layout_marginTop="15dp"/>
 
     <!-- 条形码输入行（扫码+输入框） -->
     <LinearLayout
@@ -74,6 +75,7 @@
         android:textSize="18sp"
         android:padding="12dp"
         android:background="#4CAF50"
-        android:textColor="#ffffff"/>
+        android:textColor="#ffffff"
+        android:layout_marginStart="10dp"/>
 
 </LinearLayout>

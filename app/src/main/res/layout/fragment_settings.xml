@@ -15,43 +15,18 @@
         android:text="系统设置"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:layout_marginBottom="20dp"/>
+        android:layout_marginBottom="5dp"/>
 
     <TextView
         android:id="@+id/tv_settings_info"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="便利店收银系统设置界面"
-        android:textSize="16sp"
+        android:textSize="14sp"
         android:textColor="#666666"
-        android:layout_marginBottom="30dp"/>
+        android:layout_marginBottom="0dp"/>
 
     <!-- 数据备份与恢复 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="数据管理"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="20dp"/>
-
-    <Button
-        android:id="@+id/btn_local_backup"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="本地备份"
-        android:textSize="16sp"
-        android:padding="12dp"
-        android:layout_marginBottom="15dp"/>
-
-    <Button
-        android:id="@+id/btn_local_restore"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="本地恢复"
-        android:textSize="16sp"
-        android:padding="12dp"
-        android:layout_marginBottom="25dp"/>
 
     <Button
         android:id="@+id/btn_webdav_config"
@@ -78,13 +53,13 @@
         android:text="WebDAV云恢复"
         android:textSize="16sp"
         android:padding="12dp"
-        android:layout_marginBottom="25dp"/>
+        android:layout_marginBottom="15dp"/>
 
     <Button
         android:id="@+id/btn_data_export"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="数据导出"
+        android:text="本地备份"
         android:textSize="16sp"
         android:padding="12dp"
         android:layout_marginBottom="15dp"/>
@@ -93,7 +68,16 @@
         android:id="@+id/btn_data_import"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="数据导入"
+        android:text="本地恢复"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:layout_marginBottom="15dp"/>
+    <!-- 关于 -->
+    <Button
+        android:id="@+id/btn_about"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="关于"
         android:textSize="16sp"
         android:padding="12dp"/>
 

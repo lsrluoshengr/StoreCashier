@@ -6,9 +6,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/sc_icon"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/sc_icon"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
@@ -23,6 +23,7 @@
         <activity android:name=".AddProductActivity" />
         <activity android:name=".InventoryActivity" />
         <activity android:name=".SettlementActivity" />
+        <activity android:name=".AboutActivity" />
         <!-- 添加ZXing的CaptureActivity并设置为全屏 -->
         <activity
             android:name="com.journeyapps.barcodescanner.CaptureActivity"

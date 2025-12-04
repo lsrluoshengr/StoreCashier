@@ -11,10 +11,13 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.CheckBox;
+import android.widget.Button;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class InventoryFragment extends Fragment {
@@ -22,6 +25,12 @@ public class InventoryFragment extends Fragment {
     private List<Product> productList;
     private ProductAdapter productAdapter;
     private DBHelper dbHelper;
+    private Button btnManage;
+
+    // 管理模式状态
+    private boolean isManageMode = false;
+    // 选中的商品列表
+    private List<Product> selectedProducts = new ArrayList<>();
 
     @Nullable
     @Override
@@ -30,6 +39,7 @@ public class InventoryFragment extends Fragment {
 
         // 初始化控件和数据库
         lvProductInventory = view.findViewById(R.id.lv_product_inventory);
+        btnManage = view.findViewById(R.id.btn_manage);
         dbHelper = new DBHelper(requireContext());
 
         // 加载商品列表
@@ -42,6 +52,9 @@ public class InventoryFragment extends Fragment {
             return true;
         });
 
+        // 管理按钮点击事件
+        btnManage.setOnClickListener(v -> toggleManageMode());
+
         return view;
     }
 
@@ -50,6 +63,45 @@ public class InventoryFragment extends Fragment {
         productList = dbHelper.getAllProducts();
         productAdapter = new ProductAdapter();
         lvProductInventory.setAdapter(productAdapter);
+    }
+
+    // 切换管理模式
+    private void toggleManageMode() {
+        isManageMode = !isManageMode;
+        if (isManageMode) {
+            btnManage.setText("取消"); // 进入管理模式时先显示"取消"
+            // 清空选中列表
+            selectedProducts.clear();
+        } else {
+            btnManage.setText("管理");
+            // 如果是退出管理模式并点击了删除按钮，则执行删除操作
+            if (selectedProducts.size() > 0) {
+                deleteSelectedProducts();
+            }
+        }
+        // 通知适配器管理模式变化
+        productAdapter.notifyDataSetChanged();
+    }
+
+    // 删除选中的商品
+    private void deleteSelectedProducts() {
+        // 弹出确认对话框
+        new AlertDialog.Builder(requireContext())
+                .setTitle("确认删除")
+                .setMessage("确定要删除选中的" + selectedProducts.size() + "个商品吗？")
+                .setPositiveButton("删除", (dialog, which) -> {
+                    // 执行删除操作
+                    for (Product product : selectedProducts) {
+                        dbHelper.deleteProduct(product.getBarcode());
+                    }
+                    // 刷新商品列表
+                    loadProductList();
+                    Toast.makeText(requireContext(), "删除成功！", Toast.LENGTH_SHORT).show();
+                    // 重置选中列表
+                    selectedProducts.clear();
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     // 弹出修改库存对话框
@@ -183,6 +235,7 @@ public class InventoryFragment extends Fragment {
                 convertView = LayoutInflater.from(requireContext())
                         .inflate(R.layout.item_product, parent, false);
                 holder = new ViewHolder();
+                holder.cbSelect = convertView.findViewById(R.id.cb_select_product);
                 holder.tvName = convertView.findViewById(R.id.tv_product_name);
                 holder.tvBarcode = convertView.findViewById(R.id.tv_product_barcode);
                 holder.tvPrice = convertView.findViewById(R.id.tv_product_price);
@@ -199,13 +252,49 @@ public class InventoryFragment extends Fragment {
             holder.tvPrice.setText(String.format("%.2f元", product.getPrice())); // 价格保留2位小数
             holder.tvStock.setText(String.valueOf(product.getStock()));
 
+            // 设置管理模式下的复选框状态
+            if (isManageMode) {
+                holder.cbSelect.setVisibility(View.VISIBLE);
+                // 设置复选框选中状态
+                holder.cbSelect.setChecked(selectedProducts.contains(product));
+
+                // 保存当前位置和产品引用，用于点击事件
+                int finalPosition = position;
+                Product finalProduct = product;
+
+                // 复选框点击事件
+                holder.cbSelect.setOnClickListener(v -> {
+                    if (holder.cbSelect.isChecked()) {
+                        selectedProducts.add(finalProduct);
+                    } else {
+                        selectedProducts.remove(finalProduct);
+                    }
+                    // 更新按钮文本：有选中项时显示"删除选中"，否则显示"取消"
+                    if (selectedProducts.size() > 0) {
+                        btnManage.setText("删除选中");
+                    } else {
+                        btnManage.setText("取消");
+                    }
+                });
+            } else {
+                holder.cbSelect.setVisibility(View.GONE);
+                holder.cbSelect.setChecked(false); // 退出管理模式时取消勾选
+            }
+
             return convertView;
         }
 
         // ViewHolder优化列表性能
         class ViewHolder {
+            CheckBox cbSelect;
             TextView tvName, tvBarcode, tvPrice, tvStock;
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        loadProductList(); // 每次回到该Fragment时刷新商品列表
     }
 
     @Override

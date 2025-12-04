@@ -13,7 +13,8 @@
         android:text="扫码结算"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:layout_marginBottom="20dp"/>
+        android:layout_marginBottom="20dp"
+        android:layout_marginTop="15dp"/>
 
     <!-- 扫码按钮 -->
     <Button
