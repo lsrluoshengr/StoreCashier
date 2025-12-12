@@ -150,7 +150,7 @@ public class SettingsFragment extends Fragment {
                 // 获取选中的JSON文件Uri
                 Uri jsonFileUri = data.getData();
                 try (java.io.InputStream inputStream = requireContext().getContentResolver().openInputStream(jsonFileUri);
-                     java.io.InputStreamReader reader = new java.io.InputStreamReader(inputStream)) {
+                     java.io.InputStreamReader reader = new java.io.InputStreamReader(inputStream, "UTF-8")) {
                     // 执行数据导入
                     boolean success = dbHelper.importProductsFromReader(reader);
                     if (success) {

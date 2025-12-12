@@ -7,8 +7,12 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.os.Environment;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.FileReader;
 import java.text.SimpleDateFormat;
@@ -152,7 +156,7 @@ public class DBHelper extends SQLiteOpenHelper {
             File backupFile = new File(backupDir, "product_backup.json");
 
             // 写入JSON到文件
-            try (FileWriter writer = new FileWriter(backupFile)) {
+            try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(backupFile), "UTF-8")) {
                 writer.write(json);
                 writer.flush();
             }
@@ -240,7 +244,7 @@ public class DBHelper extends SQLiteOpenHelper {
             }
 
             // 将商品列表转换为JSON并写入文件
-            try (FileWriter writer = new FileWriter(exportFile)) {
+            try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(exportFile), "UTF-8")) {
                 gson.toJson(allProducts, writer);
                 writer.flush();
             }
@@ -299,7 +303,7 @@ public class DBHelper extends SQLiteOpenHelper {
     // 导入商品数据从JSON文件（支持用户选择文件）
     public boolean importProductsFromJson(File jsonFile) {
         try {
-            return importProductsFromReader(new FileReader(jsonFile));
+            return importProductsFromReader(new InputStreamReader(new FileInputStream(jsonFile), "UTF-8"));
         } catch (IOException e) {
             e.printStackTrace();
             return false;

@@ -1,8 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tasklist:*)",
-      "Bash(findstr:*)"
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(gradlew.bat assembleDebug)",
+      "Bash(dir:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
