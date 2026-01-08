@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="#ffffff">
+
+    <EditText
+        android:id="@+id/et_webdav_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="WebDAV服务器地址 (如: http://example.com/webdav)"
+        android:textSize="14sp"
+        android:padding="10dp"
+        android:layout_marginBottom="20dp"
+        android:inputType="textUri"
+        android:background="@android:drawable/editbox_background_normal" />
+
+    <EditText
+        android:id="@+id/et_webdav_username"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="用户名"
+        android:textSize="14sp"
+        android:padding="10dp"
+        android:layout_marginBottom="20dp"
+        android:background="@android:drawable/editbox_background_normal" />
+
+    <EditText
+        android:id="@+id/et_webdav_password"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="密码"
+        android:textSize="14sp"
+        android:padding="10dp"
+        android:layout_marginBottom="20dp"
+        android:inputType="textPassword"
+        android:background="@android:drawable/editbox_background_normal" />
+
+    <EditText
+        android:id="@+id/et_webdav_folder"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="文件夹路径 (可选)"
+        android:textSize="14sp"
+        android:padding="10dp"
+        android:layout_marginBottom="10dp"
+        android:background="@android:drawable/editbox_background_normal" />
+
+    <Button
+        android:id="@+id/btn_test_connection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="测试连接"
+        android:layout_marginTop="10dp" />
+
+</LinearLayout>

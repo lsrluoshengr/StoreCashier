@@ -19,3 +19,24 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# =========================
+# Sardine-Android 混淆规则
+# =========================
+-keep class com.thegrizzlylabs.sardineandroid.** { *; }
+
+# Sardine 依赖 SimpleXML，需要保留
+-keep class org.simpleframework.xml.** { *; }
+-keepclassmembers class * {
+    @org.simpleframework.xml.* *;
+}
+
+# =========================
+# OkHttp 3 混淆规则
+# =========================
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**

@@ -1,10 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./gradlew assembleDebug:*)",
-      "Bash(gradlew.bat assembleDebug)",
-      "Bash(dir:*)",
-      "Bash(cat:*)"
+      "Bash(echo:*)",
+      "Bash(__NEW_LINE__ echo \"\n## 实现内容：\n1. **本地备份路径**：应用外部文档目录的CashierBackup文件夹\n2. **备份流程**：\n   - 创建本地JSON备份文件（带时间戳）\n   - 确保WebDAV文件夹存在\n   - 上传本地文件到WebDAV服务器\n\n## 代码优势：\n- 可靠性：本地备份失败则WebDAV上传也不会执行\n- 可溯源：本地保留备份文件便于调试\n- 兼容性：与现有代码结构保持一致\n\n## 测试建议：\n1. 确保设备已赋予应用文件存储权限\n2. 使用正确的坚果云应用密码配置WebDAV\n3. 检查本地备份文件是否生成：\n   - 路径：/Android/data/com.example.storecashier/files/Documents/CashierBackup/\n\")"
     ],
     "deny": [],
     "ask": []

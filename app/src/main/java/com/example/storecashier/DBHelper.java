@@ -139,75 +139,9 @@ public class DBHelper extends SQLiteOpenHelper {
         return rowsAffected > 0;
     }
 
-    // 本地备份：将商品数据导出为JSON文件
-    public boolean backupDatabase(Context context) {
-        try {
-            // 获取所有商品数据
-            List<Product> allProducts = getAllProducts();
 
-            // 创建Gson实例
-            Gson gson = new Gson();
 
-            // 将商品列表转换为JSON字符串
-            String json = gson.toJson(allProducts);
 
-            // 创建备份文件
-            File backupDir = context.getFilesDir();
-            File backupFile = new File(backupDir, "product_backup.json");
-
-            // 写入JSON到文件
-            try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(backupFile), "UTF-8")) {
-                writer.write(json);
-                writer.flush();
-            }
-
-            return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    // 本地恢复：从JSON文件导入商品数据
-    public boolean restoreDatabase(Context context) {
-        try {
-            // 创建Gson实例
-            Gson gson = new Gson();
-
-            // 读取备份文件
-            File backupDir = context.getFilesDir();
-            File backupFile = new File(backupDir, "product_backup.json");
-
-            // 将JSON文件内容转换为商品列表
-            Type productListType = new TypeToken<List<Product>>(){}.getType();
-            List<Product> restoredProducts;
-
-            try (Reader reader = new FileReader(backupFile)) {
-                restoredProducts = gson.fromJson(reader, productListType);
-            }
-
-            // 清空当前商品表
-            SQLiteDatabase db = this.getWritableDatabase();
-            db.delete(TABLE_PRODUCT, null, null);
-
-            // 插入恢复的商品数据
-            for (Product product : restoredProducts) {
-                ContentValues values = new ContentValues();
-                values.put(KEY_BARCODE, product.getBarcode());
-                values.put(KEY_NAME, product.getName());
-                values.put(KEY_PRICE, product.getPrice());
-                values.put(KEY_STOCK, product.getStock());
-
-                db.insert(TABLE_PRODUCT, null, values);
-            }
-
-            db.close();
-            return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
 
     // 导出商品数据到Download/Cashier目录
     public boolean exportProductsToJson(Context context) {
@@ -219,8 +153,8 @@ public class DBHelper extends SQLiteOpenHelper {
             List<Product> allProducts = getAllProducts();
 
             // 生成以当前日期为名称的文件名（格式：yyyy-MM-dd.json）
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-            String fileName = sdf.format(new Date()) + ".json";
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
+            String fileName = "Backup_" + sdf.format(new Date()) + ".json";
 
             File exportFile;
 
@@ -300,13 +234,30 @@ public class DBHelper extends SQLiteOpenHelper {
         return rowsAffected > 0;
     }
 
-    // 导入商品数据从JSON文件（支持用户选择文件）
-    public boolean importProductsFromJson(File jsonFile) {
+
+
+    // 从商品列表导入（用于WebDAV恢复）
+    public boolean importProductsFromList(List<Product> importedProducts) {
+        SQLiteDatabase db = this.getWritableDatabase();
         try {
-            return importProductsFromReader(new InputStreamReader(new FileInputStream(jsonFile), "UTF-8"));
-        } catch (IOException e) {
+            // 清空当前商品表
+            db.delete(TABLE_PRODUCT, null, null);
+
+            // 插入导入的商品数据
+            for (Product product : importedProducts) {
+                ContentValues values = new ContentValues();
+                values.put(KEY_BARCODE, product.getBarcode());
+                values.put(KEY_NAME, product.getName());
+                values.put(KEY_PRICE, product.getPrice());
+                values.put(KEY_STOCK, product.getStock());
+                db.insert(TABLE_PRODUCT, null, values);
+            }
+            return true;
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
+        } finally {
+            db.close();
         }
     }
 
