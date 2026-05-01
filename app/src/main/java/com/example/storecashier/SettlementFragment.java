@@ -36,7 +36,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-public class SettlementFragment extends Fragment {
+import androidx.lifecycle.ViewModelProvider;
+
+import androidx.recyclerview.widget.RecyclerView;
+
+public class SettlementFragment extends Fragment implements CartItemAdapter.OnCartItemChangeListener {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 200;
 
     // UI控件
@@ -46,13 +50,13 @@ public class SettlementFragment extends Fragment {
     private TextView tvScanStatus; // 新增：扫码状态提示
 
     private Button btnScanSettlement, btnClearSettlement, btnConfirmSettlement;
-    private ListView lvSettlementList;
+    private RecyclerView rvSettlementList;
     private TextView tvTotalPrice;
-    private DBHelper dbHelper;
+    private ProductViewModel productViewModel;
 
     // 逻辑变量
     private List<CartItem> settlementList = new ArrayList<>();
-    private SettlementAdapter settlementAdapter;
+    private CartItemAdapter settlementAdapter;
     private double totalPrice = 0.0;
 
     private ToneGenerator toneGenerator;
@@ -63,8 +67,8 @@ public class SettlementFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_settlement, container, false);
 
+        productViewModel = new ViewModelProvider(requireActivity()).get(ProductViewModel.class);
         initViews(view);
-        dbHelper = new DBHelper(requireContext());
 
         initBeepSound();
 
@@ -77,8 +81,8 @@ public class SettlementFragment extends Fragment {
             totalPrice = savedInstanceState.getDouble("totalPrice", 0.0);
         }
 
-        settlementAdapter = new SettlementAdapter();
-        lvSettlementList.setAdapter(settlementAdapter);
+        settlementAdapter = new CartItemAdapter(settlementList, this);
+        rvSettlementList.setAdapter(settlementAdapter);
         updateTotalPrice();
 
         return view;
@@ -94,7 +98,7 @@ public class SettlementFragment extends Fragment {
         btnScanSettlement = view.findViewById(R.id.btn_scan_settlement); // 这是下面的开启按钮
         btnClearSettlement = view.findViewById(R.id.btn_clear_settlement);
         btnConfirmSettlement = view.findViewById(R.id.btn_confirm_settlement);
-        lvSettlementList = view.findViewById(R.id.lv_settlement_list);
+        rvSettlementList = view.findViewById(R.id.rv_settlement_list);
         tvTotalPrice = view.findViewById(R.id.tv_total_price);
         tvScanStatus = view.findViewById(R.id.tv_scan_status);
 
@@ -129,13 +133,13 @@ public class SettlementFragment extends Fragment {
                     .show();
         });
 
-        lvSettlementList.setOnItemLongClickListener((parent, view1, position, id) -> {
-            CartItem cartItem = settlementList.get(position);
-            removeProductFromSettlement(position, cartItem);
-            return true;
-        });
-
         btnConfirmSettlement.setOnClickListener(v -> confirmSettlement());
+    }
+
+    @Override
+    public void onCartUpdated() {
+        calculateTotalPrice();
+        updateTotalPrice();
     }
 
     private void initBeepSound() {
@@ -203,54 +207,50 @@ public class SettlementFragment extends Fragment {
             lastScanTime = currentTime;
 
             String barcode = result.getText();
-            boolean success = queryProductAndAddToSettlement(barcode);
-
-            if (success) {
-                playBeepAndVibrate();
-            }
+            queryProductAndAddToSettlement(barcode);
         }
 
         @Override
         public void possibleResultPoints(List<ResultPoint> resultPoints) { }
     };
 
-    private boolean queryProductAndAddToSettlement(String barcode) {
-        Product product = dbHelper.getProductByBarcode(barcode);
-        if (product == null) {
-            // 未找到商品时，仅提示，不打断扫码
-            // 这里使用 runOnUiThread 确保 Toast 在主线程显示
-            requireActivity().runOnUiThread(() ->
-                    Toast.makeText(requireContext(), "未找到商品：" + barcode, Toast.LENGTH_SHORT).show()
-            );
-            return false;
-        }
+    private void queryProductAndAddToSettlement(String barcode) {
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            Product product = productViewModel.getProductByBarcodeSync(barcode);
+            requireActivity().runOnUiThread(() -> {
+                if (product == null) {
+                    Toast.makeText(requireContext(), "未找到商品：" + barcode, Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-        boolean productFound = false;
-        for (CartItem cartItem : settlementList) {
-            if (cartItem.getProduct().getBarcode().equals(barcode)) {
-                cartItem.incrementQuantity();
-                productFound = true;
-                break;
-            }
-        }
+                boolean productFound = false;
+                for (int i = 0; i < settlementList.size(); i++) {
+                    CartItem cartItem = settlementList.get(i);
+                    if (cartItem.getProduct().getBarcode().equals(barcode)) {
+                        cartItem.incrementQuantity();
+                        settlementAdapter.notifyItemChanged(i);
+                        productFound = true;
+                        break;
+                    }
+                }
 
-        if (!productFound) {
-            // 新商品添加到列表最前面，方便用户看到
-            settlementList.add(0, new CartItem(product));
-        }
+                if (!productFound) {
+                    // 新商品添加到列表最前面，方便用户看到
+                    settlementList.add(0, new CartItem(product));
+                    settlementAdapter.notifyItemInserted(0);
+                }
 
-        calculateTotalPrice();
-        settlementAdapter.notifyDataSetChanged();
-        updateTotalPrice();
+                calculateTotalPrice();
+                updateTotalPrice();
 
-        // 更新状态提示
-        tvScanStatus.setText("已添加：" + product.getName());
+                // 更新状态提示
+                tvScanStatus.setText("已添加：" + product.getName());
 
-        // 自动滚动到列表顶部，让用户看到最新添加的商品
-        // 因为我们将新商品添加到了 list.add(0, ...)，所以滚动到 0
-        lvSettlementList.smoothScrollToPosition(0);
-
-        return true;
+                // 自动滚动到列表顶部，让用户看到最新添加的商品
+                rvSettlementList.smoothScrollToPosition(0);
+                playBeepAndVibrate();
+            });
+        });
     }
 
     @Override
@@ -270,26 +270,10 @@ public class SettlementFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        dbHelper.close();
         if (toneGenerator != null) {
             toneGenerator.release();
             toneGenerator = null;
         }
-    }
-
-    private void removeProductFromSettlement(int position, CartItem cartItem) {
-        new AlertDialog.Builder(requireContext())
-                .setTitle("删除商品")
-                .setMessage("是否删除 " + cartItem.getProduct().getName() + "？")
-                .setPositiveButton("确认", (dialog, which) -> {
-                    settlementList.remove(position);
-                    calculateTotalPrice();
-                    settlementAdapter.notifyDataSetChanged();
-                    updateTotalPrice();
-                    tvScanStatus.setText("已删除商品");
-                })
-                .setNegativeButton("取消", null)
-                .show();
     }
 
     private void calculateTotalPrice() {
@@ -312,68 +296,25 @@ public class SettlementFragment extends Fragment {
                 .setTitle("确认结算")
                 .setMessage("合计金额：" + String.format("%.2f元", totalPrice) + "，是否确认结算？")
                 .setPositiveButton("确认", (dialog, which) -> {
-                    boolean allSuccess = true;
-                    for (CartItem cartItem : settlementList) {
-                        Product product = cartItem.getProduct();
-                        int newStock = product.getStock() - cartItem.getQuantity();
-                        if (!dbHelper.updateProductStock(product.getBarcode(), newStock)) {
-                            allSuccess = false;
-                            break;
-                        }
-                    }
-                    if (allSuccess) {
-                        Toast.makeText(requireContext(), "结算成功！", Toast.LENGTH_SHORT).show();
-                        settlementList.clear();
-                        totalPrice = 0.0;
-                        settlementAdapter.notifyDataSetChanged();
-                        updateTotalPrice();
-                        tvScanStatus.setText("结算完成");
-                    } else {
-                        Toast.makeText(requireContext(), "部分商品库存更新失败", Toast.LENGTH_SHORT).show();
-                    }
+                    // 调用 ViewModel 进行原子化结算
+                    productViewModel.processCheckout(new ArrayList<>(settlementList), totalPrice, () -> {
+                        // 结算完成后的 UI 操作，回到主线程执行
+                        requireActivity().runOnUiThread(() -> {
+                            Toast.makeText(requireContext(), "结算成功！", Toast.LENGTH_SHORT).show();
+                            
+                            // 清空清单和总价
+                            settlementList.clear();
+                            totalPrice = 0.0;
+                            
+                            // 刷新 UI
+                            settlementAdapter.notifyDataSetChanged();
+                            updateTotalPrice();
+                            tvScanStatus.setText("结算完成");
+                        });
+                    });
                 })
                 .setNegativeButton("取消", null)
                 .show();
-    }
-
-    private class SettlementAdapter extends BaseAdapter {
-        @Override
-        public int getCount() { return settlementList.size(); }
-        @Override
-        public Object getItem(int position) { return settlementList.get(position); }
-        @Override
-        public long getItemId(int position) { return position; }
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            ViewHolder holder;
-            if (convertView == null) {
-                convertView = LayoutInflater.from(requireContext()).inflate(R.layout.item_settlement, parent, false);
-                holder = new ViewHolder();
-                holder.tvName = convertView.findViewById(R.id.tv_settlement_name);
-                holder.tvPrice = convertView.findViewById(R.id.tv_settlement_price);
-                holder.tvQuantity = convertView.findViewById(R.id.tv_settlement_quantity);
-                holder.tvItemTotal = convertView.findViewById(R.id.tv_settlement_item_total);
-                convertView.setTag(holder);
-            } else {
-                holder = (ViewHolder) convertView.getTag();
-            }
-            CartItem cartItem = settlementList.get(position);
-            Product product = cartItem.getProduct();
-            holder.tvName.setText(product.getName());
-            holder.tvPrice.setText(String.format("单价：%.2f元", product.getPrice()));
-            holder.tvQuantity.setText(String.format("数量：%d", cartItem.getQuantity()));
-            holder.tvItemTotal.setText(String.format("小计：%.2f元", cartItem.getItemTotal()));
-
-            // 为了视觉体验，可以给第一项（最新扫描的）加个背景色高亮，这里简单处理
-            if (position == 0 && layoutScanContainer.getVisibility() == View.VISIBLE) {
-                convertView.setBackgroundColor(0xFFE3F2FD); // 浅蓝色高亮最新项
-            } else {
-                convertView.setBackgroundColor(0xFFFFFFFF);
-            }
-
-            return convertView;
-        }
-        class ViewHolder { TextView tvName, tvPrice, tvQuantity, tvItemTotal; }
     }
 
     @Override

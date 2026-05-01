@@ -63,8 +63,41 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="输入库存数量"
-        android:layout_marginBottom="30dp"
+        android:layout_marginBottom="20dp"
         android:inputType="number"/>
+
+    <!-- 商品分类 (使用 AutoCompleteTextView 允许选择或输入) -->
+    <AutoCompleteTextView
+        android:id="@+id/actv_category"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="输入或选择分类"
+        android:layout_marginBottom="30dp"
+        android:completionThreshold="1"/>
+
+    <!-- 商品图片 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <ImageView
+            android:id="@+id/iv_product_image"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="#e0e0e0"
+            android:scaleType="centerCrop"
+            android:src="@drawable/default_img"/>
+
+        <Button
+            android:id="@+id/btn_select_image"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="选择图片"
+            android:layout_marginStart="20dp"/>
+    </LinearLayout>
 
     <!-- 保存按钮 -->
     <Button

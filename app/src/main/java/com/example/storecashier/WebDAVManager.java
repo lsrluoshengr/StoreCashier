@@ -16,8 +16,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
-import java.net.URI;
-import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,12 +42,12 @@ public class WebDAVManager {
     private String folder;
 
     private Context context;
-    private DBHelper dbHelper;
+    private ProductDao productDao;
     private Sardine sardine;
 
-    public WebDAVManager(Context context, DBHelper dbHelper) {
+    public WebDAVManager(Context context) {
         this.context = context;
-        this.dbHelper = dbHelper;
+        this.productDao = AppDatabase.getDatabase(context).productDao();
         loadConfig();
         initSardine();
     }
@@ -150,7 +148,7 @@ public class WebDAVManager {
 
     public String getUrl() { return url; }
 
-    // ================== 修改部分：统一文件名备份 ==================
+    // ================== 备份：文件夹结构（products.json + images/） ==================
     public boolean backup() {
         try {
             if (url.isEmpty()) {
@@ -158,25 +156,29 @@ public class WebDAVManager {
                 return false;
             }
 
-            // 1. 统一生成文件名 (格式：Backup_yyyy-MM-dd_HH-mm-ss.json)
+            // 1. 生成备份文件夹名
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
-            String unifiedFileName = "Backup_" + sdf.format(new Date()) + ".json";
+            String backupFolderName = "Backup_" + sdf.format(new Date());
 
-            // 2. 使用该文件名创建本地文件
-            File localBackupFile = createLocalBackup(unifiedFileName);
-            if (localBackupFile == null) return false;
+            // 2. 创建本地 JSON 文件
+            List<Product> allProducts = productDao.getAllProductsSync();
+            File localJsonFile = createLocalJsonBackup(allProducts);
+            if (localJsonFile == null) return false;
 
-            // 3. 确保云端文件夹存在
-            String remoteFolderUrl = ensureFolderExists();
+            // 3. 确保云端根目录存在，然后创建备份子文件夹
+            String remoteRootUrl = ensureFolderExists();
+            String backupFolderUrl = remoteRootUrl + "/" + backupFolderName;
+            ensureSubfolderExists(backupFolderUrl);
 
-            // 4. 构建上传 URL (云端文件名与本地保持一致)
-            String remoteFileUrl = remoteFolderUrl + "/" + unifiedFileName;
+            // 4. 上传 products.json
+            String remoteJsonUrl = backupFolderUrl + "/products.json";
+            Log.d(TAG, "Uploading JSON to: " + remoteJsonUrl);
+            sardine.put(remoteJsonUrl, localJsonFile, "application/json");
 
-            // 5. 上传
-            Log.d(TAG, "Uploading to: " + remoteFileUrl);
-            sardine.put(remoteFileUrl, localBackupFile, "application/json");
+            // 5. 上传商品图片
+            uploadImages(allProducts, backupFolderUrl);
 
-            Log.d(TAG, "Backup successful: " + unifiedFileName);
+            Log.d(TAG, "Backup successful: " + backupFolderName);
             return true;
         } catch (Exception e) {
             Log.e(TAG, "Backup failed exception: " + e.getMessage());
@@ -185,14 +187,13 @@ public class WebDAVManager {
         }
     }
 
-    private File createLocalBackup(String fileName) {
+    private File createLocalJsonBackup(List<Product> allProducts) {
         try {
             File backupDir = new File(context.getExternalFilesDir(null), "webdav_cache");
             if (!backupDir.exists()) backupDir.mkdirs();
 
-            File backupFile = new File(backupDir, fileName);
+            File backupFile = new File(backupDir, "products.json");
 
-            List<Product> allProducts = dbHelper.getAllProducts();
             Gson gson = new Gson();
             String json = gson.toJson(allProducts);
 
@@ -206,45 +207,77 @@ public class WebDAVManager {
         }
     }
 
-    // ================== 新增部分：获取备份列表和指定恢复 ==================
+    private void uploadImages(List<Product> products, String backupFolderUrl) {
+        String imagesFolderUrl = backupFolderUrl + "/images";
+        boolean imagesFolderCreated = false;
 
-    // 获取云端备份文件列表
-    public List<String> listBackupFiles() throws IOException {
+        for (Product product : products) {
+            String imagePath = product.getImagePath();
+            if (imagePath == null || imagePath.isEmpty()) continue;
+
+            File imageFile = new File(imagePath);
+            if (!imageFile.exists()) {
+                Log.w(TAG, "Image file not found, skipping: " + imagePath);
+                continue;
+            }
+
+            if (!imagesFolderCreated) {
+                try {
+                    ensureSubfolderExists(imagesFolderUrl);
+                    imagesFolderCreated = true;
+                } catch (IOException e) {
+                    Log.e(TAG, "Failed to create images folder: " + e.getMessage());
+                    return;
+                }
+            }
+
+            String remoteImageUrl = imagesFolderUrl + "/" + imageFile.getName();
+            try {
+                Log.d(TAG, "Uploading image: " + remoteImageUrl);
+                sardine.put(remoteImageUrl, imageFile, "image/jpeg");
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to upload image " + imageFile.getName() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    // ================== 获取备份列表和恢复 ==================
+
+    // 获取云端备份文件夹列表
+    public List<String> listBackupFolders() throws IOException {
         if (url.isEmpty()) return new ArrayList<>();
 
         String remoteFolderUrl = url + "/" + folder;
-        Log.d(TAG, "Listing files from: " + remoteFolderUrl);
+        Log.d(TAG, "Listing folders from: " + remoteFolderUrl);
 
         List<DavResource> resources = sardine.list(remoteFolderUrl);
-        List<String> fileNames = new ArrayList<>();
+        List<String> folderNames = new ArrayList<>();
 
         for (DavResource res : resources) {
-            // 过滤非文件夹且以.json结尾的文件
-            if (!res.isDirectory() && res.getName().toLowerCase().endsWith(".json")) {
-                fileNames.add(res.getName());
+            if (res.isDirectory() && res.getName().startsWith("Backup_")) {
+                folderNames.add(res.getName());
             }
         }
         // 按名称倒序排列（时间最新的在最上面）
-        Collections.sort(fileNames, Collections.reverseOrder());
-        return fileNames;
+        Collections.sort(folderNames, Collections.reverseOrder());
+        return folderNames;
     }
 
-    // 恢复指定文件名的备份
-    public boolean restoreFile(String targetFileName) {
+    // 恢复指定备份文件夹
+    public boolean restoreFile(String folderName) {
         try {
             if (url.isEmpty()) return false;
 
-            // 1. 构建下载链接
             String remoteFolderUrl = url + "/" + folder;
-            String downloadUrl = remoteFolderUrl + "/" + targetFileName;
+            String backupFolderUrl = remoteFolderUrl + "/" + folderName;
 
-            Log.d(TAG, "Downloading specific file: " + downloadUrl);
+            // 1. 下载 products.json
+            String jsonUrl = backupFolderUrl + "/products.json";
+            Log.d(TAG, "Downloading JSON: " + jsonUrl);
 
-            // 2. 下载数据
             byte[] jsonData;
-            try (InputStream inputStream = sardine.get(downloadUrl);
+            try (InputStream inputStream = sardine.get(jsonUrl);
                  ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
-
                 byte[] data = new byte[4096];
                 int nRead;
                 while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
@@ -253,17 +286,68 @@ public class WebDAVManager {
                 jsonData = buffer.toByteArray();
             }
 
-            // 3. 解析并入库
             String jsonStr = new String(jsonData, "UTF-8");
             Type listType = new TypeToken<List<Product>>(){}.getType();
             List<Product> products = new Gson().fromJson(jsonStr, listType);
 
-            return dbHelper.importProductsFromList(products);
+            // 2. 下载图片文件到本地
+            downloadImages(backupFolderUrl, products);
+
+            // 3. 入库
+            productDao.insertAll(products);
+            return true;
 
         } catch (Exception e) {
-            Log.e(TAG, "Restore specific file failed: " + e.getMessage());
+            Log.e(TAG, "Restore failed: " + e.getMessage());
             e.printStackTrace();
             return false;
+        }
+    }
+
+    private void downloadImages(String backupFolderUrl, List<Product> products) {
+        String imagesFolderUrl = backupFolderUrl + "/images";
+        File localImagesDir = new File(context.getFilesDir(), "images");
+        if (!localImagesDir.exists()) localImagesDir.mkdirs();
+
+        // 列出远程 images 目录
+        List<DavResource> imageResources;
+        try {
+            imageResources = sardine.list(imagesFolderUrl);
+        } catch (IOException e) {
+            Log.w(TAG, "No images folder in backup, skipping image restore");
+            return;
+        }
+
+        for (DavResource res : imageResources) {
+            if (res.isDirectory()) continue;
+
+            String fileName = res.getName();
+            String remoteImageUrl = imagesFolderUrl + "/" + fileName;
+            File localImageFile = new File(localImagesDir, fileName);
+
+            try (InputStream is = sardine.get(remoteImageUrl);
+                 java.io.FileOutputStream fos = new java.io.FileOutputStream(localImageFile)) {
+                byte[] buf = new byte[4096];
+                int len;
+                while ((len = is.read(buf)) != -1) {
+                    fos.write(buf, 0, len);
+                }
+                Log.d(TAG, "Downloaded image: " + fileName);
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to download image " + fileName + ": " + e.getMessage());
+            }
+        }
+
+        // 更新所有商品的 imagePath 为新的本地路径
+        for (Product product : products) {
+            String oldPath = product.getImagePath();
+            if (oldPath == null || oldPath.isEmpty()) continue;
+
+            String fileName = new File(oldPath).getName();
+            File newFile = new File(localImagesDir, fileName);
+            if (newFile.exists()) {
+                product.setImagePath(newFile.getAbsolutePath());
+            }
         }
     }
 
@@ -288,5 +372,24 @@ public class WebDAVManager {
             }
         }
         return folderUrl;
+    }
+
+    private void ensureSubfolderExists(String subfolderUrl) throws IOException {
+        try {
+            if (sardine.exists(subfolderUrl)) {
+                return;
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Exists check failed for subfolder, trying to create: " + e.getMessage());
+        }
+
+        try {
+            Log.d(TAG, "Creating subfolder: " + subfolderUrl);
+            sardine.createDirectory(subfolderUrl);
+        } catch (IOException e) {
+            if (!e.getMessage().contains("405") && !e.getMessage().contains("Method Not Allowed")) {
+                throw e;
+            }
+        }
     }
 }

@@ -5,27 +5,56 @@
     android:orientation="vertical"
     android:padding="20dp">
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="点击下方图片可更换商品图片"
+        android:textSize="12sp"
+        android:textColor="#999999"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp"/>
+
+    <ImageView
+        android:id="@+id/iv_edit_product_image"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_gravity="center_horizontal"
+        android:background="#f0f0f0"
+        android:foreground="?android:attr/selectableItemBackground"
+        android:scaleType="centerCrop"
+        android:src="@drawable/default_img"
+        android:layout_marginBottom="20dp"
+        android:clickable="true"
+        android:focusable="true"/>
+
     <EditText
         android:id="@+id/et_edit_product_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="商品名称"
-        android:inputType="textCapWords"
-        android:layout_marginBottom="20dp" />
+        android:layout_marginBottom="10dp" />
 
     <EditText
         android:id="@+id/et_edit_product_price"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="商品价格（元）"
+        android:hint="商品单价"
         android:inputType="numberDecimal"
-        android:layout_marginBottom="20dp" />
+        android:layout_marginBottom="10dp" />
 
     <EditText
         android:id="@+id/et_edit_product_stock"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="库存数量"
-        android:inputType="number" />
+        android:inputType="number"
+        android:layout_marginBottom="10dp" />
+
+    <AutoCompleteTextView
+        android:id="@+id/actv_edit_product_category"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="商品分类"
+        android:completionThreshold="1" />
 
 </LinearLayout>

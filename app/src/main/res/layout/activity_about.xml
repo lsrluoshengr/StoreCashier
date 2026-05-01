@@ -36,7 +36,7 @@
             android:id="@+id/tv_software_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="便利店收银系统"
+            android:text="Fcat简易收银"
             android:textSize="14sp"
             android:textColor="#666666"
             android:layout_marginBottom="15dp"/>
@@ -53,7 +53,7 @@
             android:id="@+id/tv_software_version"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="1.0.1"
+            android:text="1.1.0-V20260501"
             android:textSize="14sp"
             android:textColor="#666666"
             android:layout_marginBottom="15dp"/>

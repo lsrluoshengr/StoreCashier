@@ -20,9 +20,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".AddProductActivity" />
-        <activity android:name=".InventoryActivity" />
-        <activity android:name=".SettlementActivity" />
         <activity android:name=".AboutActivity" />
         <!-- 添加ZXing的CaptureActivity并设置为全屏 -->
         <activity

@@ -40,3 +40,20 @@
 -keep interface okhttp3.** { *; }
 -dontwarn okhttp3.**
 -dontwarn okio.**
+
+# =========================
+# Glide 混淆规则
+# =========================
+-keep public class * extends com.bumptech.glide.module.AppGlideModule
+-keep public class * extends com.bumptech.glide.module.LibraryGlideModule
+-keep class com.bumptech.glide.GeneratedAppGlideModuleImpl
+-keep class com.bumptech.glide.load.resource.bitmap.VideoDecoder {
+  public <methods>;
+}
+
+# 针对 Glide 使用的反射
+-keepnames class * {
+  @com.bumptech.glide.annotation.GlideModule <methods>;
+  @com.bumptech.glide.annotation.GlideOption <methods>;
+  @com.bumptech.glide.annotation.GlideType <methods>;
+}

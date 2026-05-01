@@ -23,12 +23,13 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.Locale;
 
 import static android.app.Activity.RESULT_OK;
 
 public class SettingsFragment extends Fragment {
-    private DBHelper dbHelper;
     private WebDAVManager webDAVManager; // WebDAV管理器实例
     private static final int REQUEST_CODE_PICK_JSON_FILE = 101;
 
@@ -65,15 +66,14 @@ public class SettingsFragment extends Fragment {
         }
     }
 
-    // ================== 新增：获取备份列表的任务 ==================
+    // 获取云端备份文件夹列表的任务
     private static class GetBackupListTask extends AsyncTask<Void, Void, List<String>> {
         private WeakReference<Context> contextRef;
         private WebDAVManager webDAVManager;
         private Callback callback;
 
-        // 回调接口，用于把列表传回 Fragment
         public interface Callback {
-            void onListLoaded(List<String> fileNames);
+            void onListLoaded(List<String> folderNames);
             void onError(String errorMsg);
         }
 
@@ -86,26 +86,25 @@ public class SettingsFragment extends Fragment {
         @Override
         protected List<String> doInBackground(Void... params) {
             try {
-                return webDAVManager.listBackupFiles();
+                return webDAVManager.listBackupFolders();
             } catch (Exception e) {
                 e.printStackTrace();
-                return null; // 返回 null 表示出错
+                return null;
             }
         }
 
         @Override
-        protected void onPostExecute(List<String> fileNames) {
-            if (fileNames == null) {
+        protected void onPostExecute(List<String> folderNames) {
+            if (folderNames == null) {
                 if (callback != null) callback.onError("获取备份列表失败，请检查网络或配置");
-            } else if (fileNames.isEmpty()) {
-                if (callback != null) callback.onError("云端没有找到 .json 备份文件");
+            } else if (folderNames.isEmpty()) {
+                if (callback != null) callback.onError("云端没有找到备份记录");
             } else {
-                if (callback != null) callback.onListLoaded(fileNames);
+                if (callback != null) callback.onListLoaded(folderNames);
             }
         }
     }
 
-    // ================== 修改：WebDAV恢复任务（接收文件名参数） ==================
     private static class WebDAVRestoreTask extends AsyncTask<String, Void, Boolean> {
         private WeakReference<Context> contextRef;
         private WebDAVManager webDAVManager;
@@ -117,9 +116,9 @@ public class SettingsFragment extends Fragment {
 
         @Override
         protected Boolean doInBackground(String... params) {
-            String fileName = params[0]; // 获取传入的文件名
+            String folderName = params[0];
             try {
-                return webDAVManager.restoreFile(fileName);
+                return webDAVManager.restoreFile(folderName);
             } catch (Exception e) {
                 e.printStackTrace();
                 return false;
@@ -131,7 +130,7 @@ public class SettingsFragment extends Fragment {
             Context context = contextRef.get();
             if (context != null) {
                 if (success) {
-                    Toast.makeText(context, "数据恢复成功！", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "数据和图片恢复成功！", Toast.LENGTH_SHORT).show();
                 } else {
                     Toast.makeText(context, "数据恢复失败，请查看日志", Toast.LENGTH_SHORT).show();
                 }
@@ -204,8 +203,7 @@ public class SettingsFragment extends Fragment {
         tvSettingsTitle.setText("系统设置");
         tvSettingsInfo.setText("便利店收银系统设置界面");
 
-        dbHelper = new DBHelper(requireContext());
-        webDAVManager = new WebDAVManager(requireContext(), dbHelper); // 初始化WebDAV管理器
+        webDAVManager = new WebDAVManager(requireContext()); // 初始化WebDAV管理器
 
         // WebDAV配置按钮点击事件
         btnWebDAVConfig.setOnClickListener(v -> {
@@ -279,15 +277,12 @@ public class SettingsFragment extends Fragment {
                 return;
             }
 
-            // 显示加载提示
             Toast.makeText(requireContext(), "正在获取云端备份列表...", Toast.LENGTH_SHORT).show();
 
-            // 执行获取列表任务
             new GetBackupListTask(requireContext(), webDAVManager, new GetBackupListTask.Callback() {
                 @Override
-                public void onListLoaded(List<String> fileNames) {
-                    // 列表获取成功，显示选择对话框
-                    showBackupSelectionDialog(fileNames);
+                public void onListLoaded(List<String> folderNames) {
+                    showBackupSelectionDialog(folderNames);
                 }
 
                 @Override
@@ -317,6 +312,15 @@ public class SettingsFragment extends Fragment {
             }
         });
 
+        // 查看历史订单按钮点击事件
+        Button btnViewOrders = view.findViewById(R.id.btn_view_orders);
+        btnViewOrders.setOnClickListener(v -> {
+            getParentFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, new OrderHistoryFragment())
+                    .addToBackStack(null)
+                    .commit();
+        });
+
         // 关于按钮点击事件
         Button btnAbout = view.findViewById(R.id.btn_about);
         btnAbout.setOnClickListener(v -> {
@@ -327,27 +331,22 @@ public class SettingsFragment extends Fragment {
         return view;
     }
 
-    // ================== 新增：显示选择文件的对话框 ==================
-    private void showBackupSelectionDialog(List<String> fileNames) {
-        if (fileNames == null || fileNames.isEmpty()) return;
+    private void showBackupSelectionDialog(List<String> folderNames) {
+        if (folderNames == null || folderNames.isEmpty()) return;
 
-        // 将 List 转换为数组供 Dialog 使用
-        String[] items = fileNames.toArray(new String[0]);
+        String[] items = folderNames.toArray(new String[0]);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        builder.setTitle("请选择要恢复的备份");
+        builder.setTitle("选择要恢复的备份（含图片）");
 
-        // 设置列表项和点击事件
         builder.setItems(items, (dialog, which) -> {
-            String selectedFileName = items[which];
+            String selectedFolder = items[which];
 
-            // 用户确认恢复
             new AlertDialog.Builder(requireContext())
                     .setTitle("确认恢复")
-                    .setMessage("即将恢复文件：" + selectedFileName + "\n当前本地数据将被覆盖，是否继续？")
+                    .setMessage("即将恢复备份：" + selectedFolder + "\n商品数据和图片将一并恢复，当前本地数据将被覆盖，是否继续？")
                     .setPositiveButton("确定", (confirmDialog, confirmWhich) -> {
-                        // 执行恢复任务，传入选中的文件名
-                        new WebDAVRestoreTask(requireContext(), webDAVManager).execute(selectedFileName);
+                        new WebDAVRestoreTask(requireContext(), webDAVManager).execute(selectedFolder);
                     })
                     .setNegativeButton("取消", null)
                     .show();
@@ -358,12 +357,66 @@ public class SettingsFragment extends Fragment {
     }
 
     private void exportProducts() {
-        boolean success = dbHelper.exportProductsToJson(requireContext());
-        if (success) {
-            Toast.makeText(requireContext(), "数据导出成功！文件保存在Download/Cashier目录", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(requireContext(), "数据导出失败", Toast.LENGTH_SHORT).show();
-        }
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            try {
+                ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                List<Product> allProducts = dao.getAllProductsSync();
+
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault());
+                String folderName = "Backup_" + sdf.format(new java.util.Date());
+
+                java.io.File downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+                java.io.File backupDir = new java.io.File(downloadDir, "Cashier/" + folderName);
+                if (!backupDir.exists()) backupDir.mkdirs();
+
+                // 导出 JSON
+                java.io.File exportFile = new java.io.File(backupDir, "products.json");
+                com.google.gson.Gson gson = new com.google.gson.Gson();
+                try (java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(new java.io.FileOutputStream(exportFile), "UTF-8")) {
+                    gson.toJson(allProducts, writer);
+                    writer.flush();
+                }
+
+                // 复制商品图片到 images 子目录
+                java.io.File imagesDir = new java.io.File(backupDir, "images");
+                boolean hasImages = false;
+                for (Product product : allProducts) {
+                    String imagePath = product.getImagePath();
+                    if (imagePath == null || imagePath.isEmpty()) continue;
+
+                    java.io.File srcFile = new java.io.File(imagePath);
+                    if (!srcFile.exists()) continue;
+
+                    if (!hasImages) {
+                        imagesDir.mkdirs();
+                        hasImages = true;
+                    }
+
+                    java.io.File dstFile = new java.io.File(imagesDir, srcFile.getName());
+                    try (java.io.InputStream in = new java.io.FileInputStream(srcFile);
+                         java.io.OutputStream out = new java.io.FileOutputStream(dstFile)) {
+                        byte[] buf = new byte[4096];
+                        int len;
+                        while ((len = in.read(buf)) > 0) {
+                            out.write(buf, 0, len);
+                        }
+                    }
+                }
+
+                String msg = hasImages
+                        ? "导出成功！含图片，保存在 Download/Cashier/" + folderName
+                        : "导出成功！保存在 Download/Cashier/" + folderName;
+                String finalMsg = msg;
+                requireActivity().runOnUiThread(() ->
+                    Toast.makeText(requireContext(), finalMsg, Toast.LENGTH_SHORT).show()
+                );
+            } catch (Exception e) {
+                e.printStackTrace();
+                requireActivity().runOnUiThread(() ->
+                    Toast.makeText(requireContext(), "数据导出失败", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 
     private void openJsonFilePicker() {
@@ -397,18 +450,27 @@ public class SettingsFragment extends Fragment {
         if (requestCode == REQUEST_CODE_PICK_JSON_FILE && resultCode == RESULT_OK) {
             if (data != null && data.getData() != null) {
                 Uri jsonFileUri = data.getData();
-                try (java.io.InputStream inputStream = requireContext().getContentResolver().openInputStream(jsonFileUri);
-                     java.io.InputStreamReader reader = new java.io.InputStreamReader(inputStream, "UTF-8")) {
-                    boolean success = dbHelper.importProductsFromReader(reader);
-                    if (success) {
-                        Toast.makeText(requireContext(), "数据导入成功", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(requireContext(), "数据导入失败", Toast.LENGTH_SHORT).show();
+                AppDatabase.databaseWriteExecutor.execute(() -> {
+                    try (java.io.InputStream inputStream = requireContext().getContentResolver().openInputStream(jsonFileUri);
+                         java.io.InputStreamReader reader = new java.io.InputStreamReader(inputStream, "UTF-8")) {
+                        
+                        com.google.gson.Gson gson = new com.google.gson.Gson();
+                        java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<Product>>(){}.getType();
+                        List<Product> products = gson.fromJson(reader, listType);
+                        
+                        ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                        dao.insertAll(products);
+                        
+                        requireActivity().runOnUiThread(() -> 
+                            Toast.makeText(requireContext(), "数据导入成功", Toast.LENGTH_SHORT).show()
+                        );
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        requireActivity().runOnUiThread(() -> 
+                            Toast.makeText(requireContext(), "数据导入失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                        );
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    Toast.makeText(requireContext(), "数据导入失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                }
+                });
             }
         }
     }
@@ -416,6 +478,5 @@ public class SettingsFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        dbHelper.close();
     }
 }

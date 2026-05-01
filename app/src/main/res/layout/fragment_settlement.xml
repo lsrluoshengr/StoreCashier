@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5"
@@ -72,14 +73,13 @@
                 android:textColor="#666666"/>
         </RelativeLayout>
 
-        <ListView
-            android:id="@+id/lv_settlement_list"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_settlement_list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:divider="#E0E0E0"
-            android:dividerHeight="1dp"
-            android:scrollbarStyle="outsideOverlay"/>
+            android:scrollbarStyle="outsideOverlay"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
 
         <LinearLayout
             android:layout_width="match_parent"

@@ -3,30 +3,45 @@ package com.example.storecashier;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import androidx.room.Entity;
+import androidx.room.Ignore;
+import androidx.room.Index;
+import androidx.room.PrimaryKey;
+
+@Entity(tableName = "product", indices = {@Index(value = {"barcode"}, unique = true)})
 public class Product implements Parcelable {
+    @PrimaryKey(autoGenerate = true)
     private int id; // 自增ID（数据库主键）
     private String barcode; // 商品条形码（唯一标识）
     private String name; // 商品名称
     private double price; // 商品单价
     private int stock; // 库存数量
+    private String category; // 商品分类
+    private String imagePath; // 商品图片本地路径
 
-    // 构造方法（无参+有参）
+    // 构造方法（Room 使用无参构造方法）
     public Product() {}
 
-    public Product(String barcode, String name, double price, int stock) {
+    @Ignore
+    public Product(String barcode, String name, double price, int stock, String category, String imagePath) {
         this.barcode = barcode;
         this.name = name;
         this.price = price;
         this.stock = stock;
+        this.category = category;
+        this.imagePath = imagePath;
     }
 
     // Parcelable 构造方法
+    @Ignore
     protected Product(Parcel in) {
         id = in.readInt();
         barcode = in.readString();
         name = in.readString();
         price = in.readDouble();
         stock = in.readInt();
+        category = in.readString();
+        imagePath = in.readString();
     }
 
     public static final Creator<Product> CREATOR = new Creator<Product>() {
@@ -52,6 +67,10 @@ public class Product implements Parcelable {
     public void setPrice(double price) { this.price = price; }
     public int getStock() { return stock; }
     public void setStock(int stock) { this.stock = stock; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public String getImagePath() { return imagePath; }
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
 
     // Parcelable 方法
     @Override
@@ -66,5 +85,7 @@ public class Product implements Parcelable {
         dest.writeString(name);
         dest.writeDouble(price);
         dest.writeInt(stock);
+        dest.writeString(category);
+        dest.writeString(imagePath);
     }
 }

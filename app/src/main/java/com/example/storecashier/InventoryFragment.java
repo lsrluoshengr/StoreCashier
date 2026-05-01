@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -20,12 +21,46 @@ import androidx.fragment.app.Fragment;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.lifecycle.ViewModelProvider;
+
+import android.widget.AutoCompleteTextView;
+import android.widget.ArrayAdapter;
+
+import com.bumptech.glide.Glide;
+import java.io.File;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import android.net.Uri;
+
 public class InventoryFragment extends Fragment {
     private ListView lvProductInventory;
-    private List<Product> productList;
+    private List<Product> productList = new ArrayList<>();
     private ProductAdapter productAdapter;
-    private DBHelper dbHelper;
+    private ProductViewModel productViewModel;
     private Button btnManage;
+
+    // 用于图片编辑的状态变量
+    private Product currentEditingProduct;
+    private ImageView currentDialogImageView;
+    private String tempImagePath; // 用于暂存新选中的图片路径
+
+    // 注册图片选择器
+    private final ActivityResultLauncher<String> imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.GetContent(),
+            uri -> {
+                if (uri != null && currentEditingProduct != null && currentDialogImageView != null) {
+                    // 拷贝图片到私有目录
+                    String fileName = "img_" + currentEditingProduct.getBarcode() + "_" + System.currentTimeMillis() + ".jpg";
+                    String newPath = FileUtil.copyImageToInternal(requireContext(), uri, fileName);
+                    if (newPath != null) {
+                        tempImagePath = newPath;
+                        // 预览新图片
+                        Glide.with(this).load(new File(newPath)).into(currentDialogImageView);
+                    }
+                }
+            }
+    );
 
     // 管理模式状态
     private boolean isManageMode = false;
@@ -37,13 +72,20 @@ public class InventoryFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_inventory, container, false);
 
-        // 初始化控件和数据库
+        // 初始化控件和ViewModel
         lvProductInventory = view.findViewById(R.id.lv_product_inventory);
         btnManage = view.findViewById(R.id.btn_manage);
-        dbHelper = new DBHelper(requireContext());
+        productViewModel = new ViewModelProvider(requireActivity()).get(ProductViewModel.class);
 
-        // 加载商品列表
-        loadProductList();
+        // 初始化适配器
+        productAdapter = new ProductAdapter();
+        lvProductInventory.setAdapter(productAdapter);
+
+        // 观察商品列表变化
+        productViewModel.getAllProducts().observe(getViewLifecycleOwner(), products -> {
+            productList = products;
+            productAdapter.notifyDataSetChanged();
+        });
 
         // 长按商品自由编辑
         lvProductInventory.setOnItemLongClickListener((parent, view1, position, id) -> {
@@ -60,9 +102,7 @@ public class InventoryFragment extends Fragment {
 
     // 加载所有商品到列表
     private void loadProductList() {
-        productList = dbHelper.getAllProducts();
-        productAdapter = new ProductAdapter();
-        lvProductInventory.setAdapter(productAdapter);
+        // 使用 LiveData，不再需要手动加载
     }
 
     // 切换管理模式
@@ -91,16 +131,24 @@ public class InventoryFragment extends Fragment {
                 .setMessage("确定要删除选中的" + selectedProducts.size() + "个商品吗？")
                 .setPositiveButton("删除", (dialog, which) -> {
                     // 执行删除操作
-                    for (Product product : selectedProducts) {
-                        dbHelper.deleteProduct(product.getBarcode());
-                    }
-                    // 刷新商品列表
-                    loadProductList();
+                    AppDatabase.databaseWriteExecutor.execute(() -> {
+                        ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                        for (Product product : selectedProducts) {
+                            dao.delete(product);
+                        }
+                    });
                     Toast.makeText(requireContext(), "删除成功！", Toast.LENGTH_SHORT).show();
                     // 重置选中列表
                     selectedProducts.clear();
+                    isManageMode = false;
+                    btnManage.setText("管理");
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (dialog, which) -> {
+                    isManageMode = false;
+                    btnManage.setText("管理");
+                    selectedProducts.clear();
+                    productAdapter.notifyDataSetChanged();
+                })
                 .show();
     }
 
@@ -132,14 +180,9 @@ public class InventoryFragment extends Fragment {
                         return;
                     }
                     // 更新库存到数据库
-                    boolean isUpdated = dbHelper.updateProductStock(product.getBarcode(), newStock);
-                    if (isUpdated) {
-                        Toast.makeText(requireContext(), "库存更新成功", Toast.LENGTH_SHORT).show();
-                        product.setStock(newStock); // 更新列表数据
-                        productAdapter.notifyDataSetChanged(); // 刷新列表
-                    } else {
-                        Toast.makeText(requireContext(), "库存更新失败", Toast.LENGTH_SHORT).show();
-                    }
+                    product.setStock(newStock);
+                    productViewModel.update(product);
+                    Toast.makeText(requireContext(), "库存更新成功", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -147,19 +190,45 @@ public class InventoryFragment extends Fragment {
 
     // 弹出自由编辑商品信息对话框
     private void showEditProductDialog(Product product) {
+        // 更新当前编辑状态
+        currentEditingProduct = product;
+        tempImagePath = product.getImagePath(); // 初始为原路径
+
         // 创建对话框布局
         LayoutInflater inflater = LayoutInflater.from(requireContext());
         View dialogView = inflater.inflate(R.layout.dialog_edit_product, null);
 
         // 找到对话框中的控件
+        currentDialogImageView = dialogView.findViewById(R.id.iv_edit_product_image);
         EditText etProductName = dialogView.findViewById(R.id.et_edit_product_name);
         EditText etProductPrice = dialogView.findViewById(R.id.et_edit_product_price);
         EditText etProductStock = dialogView.findViewById(R.id.et_edit_product_stock);
+        AutoCompleteTextView actvCategory = dialogView.findViewById(R.id.actv_edit_product_category);
+
+        // 加载当前图片
+        Glide.with(this)
+                .load(product.getImagePath() != null ? new File(product.getImagePath()) : null)
+                .placeholder(R.drawable.default_img)
+                .error(R.drawable.default_img)
+                .into(currentDialogImageView);
+
+        // 点击图片更换
+        currentDialogImageView.setOnClickListener(v -> imagePickerLauncher.launch("image/*"));
+
+        // 设置分类建议
+        productViewModel.getAllCategories().observe(getViewLifecycleOwner(), categories -> {
+            if (categories != null) {
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+                        android.R.layout.simple_dropdown_item_1line, categories);
+                actvCategory.setAdapter(adapter);
+            }
+        });
 
         // 设置初始值
         etProductName.setText(product.getName());
         etProductPrice.setText(String.format("%.2f", product.getPrice()));
         etProductStock.setText(String.valueOf(product.getStock()));
+        actvCategory.setText(product.getCategory());
 
         new AlertDialog.Builder(requireContext())
                 .setTitle("编辑商品信息")
@@ -169,6 +238,7 @@ public class InventoryFragment extends Fragment {
                     String name = etProductName.getText().toString().trim();
                     String priceStr = etProductPrice.getText().toString().trim();
                     String stockStr = etProductStock.getText().toString().trim();
+                    String category = actvCategory.getText().toString().trim();
 
                     // 验证输入
                     if (name.isEmpty() || priceStr.isEmpty() || stockStr.isEmpty()) {
@@ -191,21 +261,23 @@ public class InventoryFragment extends Fragment {
                         }
 
                         // 更新商品信息到数据库
-                        boolean isUpdated = dbHelper.updateProduct(product.getBarcode(), name, price, stock);
-                        if (isUpdated) {
-                            // 更新列表中的商品信息
-                            product.setName(name);
-                            product.setPrice(price);
-                            product.setStock(stock);
-                            productAdapter.notifyDataSetChanged();
-                            Toast.makeText(requireContext(), "商品信息更新成功", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(requireContext(), "商品信息更新失败", Toast.LENGTH_SHORT).show();
-                        }
+                        product.setName(name);
+                        product.setPrice(price);
+                        product.setStock(stock);
+                        product.setCategory(category);
+                        product.setImagePath(tempImagePath); // 更新图片路径
+                        productViewModel.update(product);
+                        Toast.makeText(requireContext(), "商品信息更新成功", Toast.LENGTH_SHORT).show();
 
                     } catch (NumberFormatException e) {
                         Toast.makeText(requireContext(), "价格或库存格式错误", Toast.LENGTH_SHORT).show();
                     }
+                })
+                .setOnDismissListener(dialog -> {
+                    // 对话框消失时清理引用，防止泄露
+                    currentEditingProduct = null;
+                    currentDialogImageView = null;
+                    tempImagePath = null;
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -215,7 +287,7 @@ public class InventoryFragment extends Fragment {
     private class ProductAdapter extends BaseAdapter {
         @Override
         public int getCount() {
-            return productList.size();
+            return productList == null ? 0 : productList.size();
         }
 
         @Override
@@ -236,7 +308,9 @@ public class InventoryFragment extends Fragment {
                         .inflate(R.layout.item_product, parent, false);
                 holder = new ViewHolder();
                 holder.cbSelect = convertView.findViewById(R.id.cb_select_product);
+                holder.ivIcon = convertView.findViewById(R.id.iv_product_icon);
                 holder.tvName = convertView.findViewById(R.id.tv_product_name);
+                holder.tvCategory = convertView.findViewById(R.id.tv_product_category);
                 holder.tvBarcode = convertView.findViewById(R.id.tv_product_barcode);
                 holder.tvPrice = convertView.findViewById(R.id.tv_product_price);
                 holder.tvStock = convertView.findViewById(R.id.tv_product_stock);
@@ -248,6 +322,22 @@ public class InventoryFragment extends Fragment {
             // 填充数据
             Product product = productList.get(position);
             holder.tvName.setText(product.getName());
+            
+            // 加载图片
+            Glide.with(requireContext())
+                    .load(product.getImagePath() != null ? new File(product.getImagePath()) : null)
+                    .placeholder(R.drawable.default_img)
+                    .error(R.drawable.default_img)
+                    .into(holder.ivIcon);
+
+            // 设置分类显示
+            if (product.getCategory() != null && !product.getCategory().isEmpty()) {
+                holder.tvCategory.setVisibility(View.VISIBLE);
+                holder.tvCategory.setText(product.getCategory());
+            } else {
+                holder.tvCategory.setVisibility(View.GONE);
+            }
+
             holder.tvBarcode.setText(product.getBarcode());
             holder.tvPrice.setText(String.format("%.2f元", product.getPrice())); // 价格保留2位小数
             holder.tvStock.setText(String.valueOf(product.getStock()));
@@ -259,7 +349,6 @@ public class InventoryFragment extends Fragment {
                 holder.cbSelect.setChecked(selectedProducts.contains(product));
 
                 // 保存当前位置和产品引用，用于点击事件
-                int finalPosition = position;
                 Product finalProduct = product;
 
                 // 复选框点击事件
@@ -287,19 +376,18 @@ public class InventoryFragment extends Fragment {
         // ViewHolder优化列表性能
         class ViewHolder {
             CheckBox cbSelect;
-            TextView tvName, tvBarcode, tvPrice, tvStock;
+            ImageView ivIcon;
+            TextView tvName, tvCategory, tvBarcode, tvPrice, tvStock;
         }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        loadProductList(); // 每次回到该Fragment时刷新商品列表
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        dbHelper.close();
     }
 }

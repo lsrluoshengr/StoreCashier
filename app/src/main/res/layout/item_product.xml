@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:padding="15dp">
@@ -9,66 +9,111 @@
         android:id="@+id/cb_select_product"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:layout_marginEnd="15dp"
-        android:visibility="gone"/>
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <ImageView
+        android:id="@+id/iv_product_icon"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_marginStart="8dp"
+        android:background="#f0f0f0"
+        android:scaleType="centerCrop"
+        android:src="@drawable/default_img"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/cb_select_product"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_product_name"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_toRightOf="@id/cb_select_product"
-        android:orientation="vertical">
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toStartOf="@id/tv_product_stock"
+        app:layout_constraintStart_toEndOf="@id/iv_product_icon"
+        app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
-            android:id="@+id/tv_product_name"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:textStyle="bold"/>
+    <TextView
+        android:id="@+id/tv_product_category"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
+        android:background="#999999"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp"
+        android:textColor="#ffffff"
+        android:textSize="12sp"
+        app:layout_constraintStart_toEndOf="@id/iv_product_icon"
+        app:layout_constraintTop_toBottomOf="@id/tv_product_name" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="5dp">
+    <TextView
+        android:id="@+id/tv_barcode_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
+        android:text="条码："
+        android:textColor="#666666"
+        android:textSize="14sp"
+        app:layout_constraintStart_toEndOf="@id/iv_product_icon"
+        app:layout_constraintTop_toBottomOf="@id/tv_product_category" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="条码："
-                android:textColor="#666666"/>
-            <TextView
-                android:id="@+id/tv_product_barcode"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#666666"
-                android:layout_marginEnd="20dp"/>
+    <TextView
+        android:id="@+id/tv_product_barcode"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#666666"
+        android:textSize="14sp"
+        app:layout_constraintBaseline_toBaselineOf="@id/tv_barcode_label"
+        app:layout_constraintEnd_toStartOf="@id/tv_product_stock"
+        app:layout_constraintStart_toEndOf="@id/tv_barcode_label" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="价格："
-                android:textColor="#666666"/>
-            <TextView
-                android:id="@+id/tv_product_price"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#666666"
-                android:layout_marginEnd="20dp"/>
+    <TextView
+        android:id="@+id/tv_price_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
+        android:text="价格："
+        android:textColor="#666666"
+        android:textSize="14sp"
+        app:layout_constraintStart_toEndOf="@id/iv_product_icon"
+        app:layout_constraintTop_toBottomOf="@id/tv_barcode_label" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="库存："
-                android:textColor="#666666"/>
-            <TextView
-                android:id="@+id/tv_product_stock"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#FF5722"
-                android:textStyle="bold"/>
-        </LinearLayout>
+    <TextView
+        android:id="@+id/tv_product_price"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:textColor="#666666"
+        android:textSize="14sp"
+        app:layout_constraintBaseline_toBaselineOf="@id/tv_price_label"
+        app:layout_constraintEnd_toStartOf="@id/tv_product_stock"
+        app:layout_constraintStart_toEndOf="@id/tv_price_label" />
 
-    </LinearLayout>
+    <TextView
+        android:id="@+id/tv_product_stock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:textColor="#FF5722"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
