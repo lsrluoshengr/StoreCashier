@@ -44,12 +44,12 @@ public class WebDAVManager {
     private String folder;
 
     private Context context;
-    private DBHelper dbHelper;
+    private ProductDao productDao;
     private Sardine sardine;
 
-    public WebDAVManager(Context context, DBHelper dbHelper) {
+    public WebDAVManager(Context context) {
         this.context = context;
-        this.dbHelper = dbHelper;
+        this.productDao = AppDatabase.getDatabase(context).productDao();
         loadConfig();
         initSardine();
     }
@@ -192,7 +192,7 @@ public class WebDAVManager {
 
             File backupFile = new File(backupDir, fileName);
 
-            List<Product> allProducts = dbHelper.getAllProducts();
+            List<Product> allProducts = productDao.getAllProductsSync();
             Gson gson = new Gson();
             String json = gson.toJson(allProducts);
 
@@ -258,7 +258,8 @@ public class WebDAVManager {
             Type listType = new TypeToken<List<Product>>(){}.getType();
             List<Product> products = new Gson().fromJson(jsonStr, listType);
 
-            return dbHelper.importProductsFromList(products);
+            productDao.insertAll(products);
+            return true;
 
         } catch (Exception e) {
             Log.e(TAG, "Restore specific file failed: " + e.getMessage());

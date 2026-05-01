@@ -23,12 +23,13 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.Locale;
 
 import static android.app.Activity.RESULT_OK;
 
 public class SettingsFragment extends Fragment {
-    private DBHelper dbHelper;
     private WebDAVManager webDAVManager; // WebDAV管理器实例
     private static final int REQUEST_CODE_PICK_JSON_FILE = 101;
 
@@ -204,8 +205,7 @@ public class SettingsFragment extends Fragment {
         tvSettingsTitle.setText("系统设置");
         tvSettingsInfo.setText("便利店收银系统设置界面");
 
-        dbHelper = new DBHelper(requireContext());
-        webDAVManager = new WebDAVManager(requireContext(), dbHelper); // 初始化WebDAV管理器
+        webDAVManager = new WebDAVManager(requireContext()); // 初始化WebDAV管理器
 
         // WebDAV配置按钮点击事件
         btnWebDAVConfig.setOnClickListener(v -> {
@@ -358,12 +358,35 @@ public class SettingsFragment extends Fragment {
     }
 
     private void exportProducts() {
-        boolean success = dbHelper.exportProductsToJson(requireContext());
-        if (success) {
-            Toast.makeText(requireContext(), "数据导出成功！文件保存在Download/Cashier目录", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(requireContext(), "数据导出失败", Toast.LENGTH_SHORT).show();
-        }
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            try {
+                ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                List<Product> allProducts = dao.getAllProductsSync();
+                
+                com.google.gson.Gson gson = new com.google.gson.Gson();
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault());
+                String fileName = "Backup_" + sdf.format(new java.util.Date()) + ".json";
+                
+                java.io.File downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+                java.io.File cashierDir = new java.io.File(downloadDir, "Cashier");
+                if (!cashierDir.exists()) cashierDir.mkdirs();
+                java.io.File exportFile = new java.io.File(cashierDir, fileName);
+                
+                try (java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(new java.io.FileOutputStream(exportFile), "UTF-8")) {
+                    gson.toJson(allProducts, writer);
+                    writer.flush();
+                }
+                
+                requireActivity().runOnUiThread(() -> 
+                    Toast.makeText(requireContext(), "数据导出成功！文件保存在Download/Cashier目录", Toast.LENGTH_SHORT).show()
+                );
+            } catch (Exception e) {
+                e.printStackTrace();
+                requireActivity().runOnUiThread(() -> 
+                    Toast.makeText(requireContext(), "数据导出失败", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 
     private void openJsonFilePicker() {
@@ -397,18 +420,27 @@ public class SettingsFragment extends Fragment {
         if (requestCode == REQUEST_CODE_PICK_JSON_FILE && resultCode == RESULT_OK) {
             if (data != null && data.getData() != null) {
                 Uri jsonFileUri = data.getData();
-                try (java.io.InputStream inputStream = requireContext().getContentResolver().openInputStream(jsonFileUri);
-                     java.io.InputStreamReader reader = new java.io.InputStreamReader(inputStream, "UTF-8")) {
-                    boolean success = dbHelper.importProductsFromReader(reader);
-                    if (success) {
-                        Toast.makeText(requireContext(), "数据导入成功", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(requireContext(), "数据导入失败", Toast.LENGTH_SHORT).show();
+                AppDatabase.databaseWriteExecutor.execute(() -> {
+                    try (java.io.InputStream inputStream = requireContext().getContentResolver().openInputStream(jsonFileUri);
+                         java.io.InputStreamReader reader = new java.io.InputStreamReader(inputStream, "UTF-8")) {
+                        
+                        com.google.gson.Gson gson = new com.google.gson.Gson();
+                        java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<Product>>(){}.getType();
+                        List<Product> products = gson.fromJson(reader, listType);
+                        
+                        ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                        dao.insertAll(products);
+                        
+                        requireActivity().runOnUiThread(() -> 
+                            Toast.makeText(requireContext(), "数据导入成功", Toast.LENGTH_SHORT).show()
+                        );
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        requireActivity().runOnUiThread(() -> 
+                            Toast.makeText(requireContext(), "数据导入失败: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                        );
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    Toast.makeText(requireContext(), "数据导入失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                }
+                });
             }
         }
     }
@@ -416,6 +448,5 @@ public class SettingsFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        dbHelper.close();
     }
 }

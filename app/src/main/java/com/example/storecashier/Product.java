@@ -3,16 +3,24 @@ package com.example.storecashier;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import androidx.room.Entity;
+import androidx.room.Ignore;
+import androidx.room.Index;
+import androidx.room.PrimaryKey;
+
+@Entity(tableName = "product", indices = {@Index(value = {"barcode"}, unique = true)})
 public class Product implements Parcelable {
+    @PrimaryKey(autoGenerate = true)
     private int id; // 自增ID（数据库主键）
     private String barcode; // 商品条形码（唯一标识）
     private String name; // 商品名称
     private double price; // 商品单价
     private int stock; // 库存数量
 
-    // 构造方法（无参+有参）
+    // 构造方法（Room 使用无参构造方法）
     public Product() {}
 
+    @Ignore
     public Product(String barcode, String name, double price, int stock) {
         this.barcode = barcode;
         this.name = name;
@@ -21,6 +29,7 @@ public class Product implements Parcelable {
     }
 
     // Parcelable 构造方法
+    @Ignore
     protected Product(Parcel in) {
         id = in.readInt();
         barcode = in.readString();

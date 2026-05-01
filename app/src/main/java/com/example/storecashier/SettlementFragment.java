@@ -36,6 +36,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import androidx.lifecycle.ViewModelProvider;
+
 public class SettlementFragment extends Fragment {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 200;
 
@@ -48,7 +50,7 @@ public class SettlementFragment extends Fragment {
     private Button btnScanSettlement, btnClearSettlement, btnConfirmSettlement;
     private ListView lvSettlementList;
     private TextView tvTotalPrice;
-    private DBHelper dbHelper;
+    private ProductViewModel productViewModel;
 
     // 逻辑变量
     private List<CartItem> settlementList = new ArrayList<>();
@@ -64,7 +66,7 @@ public class SettlementFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_settlement, container, false);
 
         initViews(view);
-        dbHelper = new DBHelper(requireContext());
+        productViewModel = new ViewModelProvider(requireActivity()).get(ProductViewModel.class);
 
         initBeepSound();
 
@@ -203,54 +205,48 @@ public class SettlementFragment extends Fragment {
             lastScanTime = currentTime;
 
             String barcode = result.getText();
-            boolean success = queryProductAndAddToSettlement(barcode);
-
-            if (success) {
-                playBeepAndVibrate();
-            }
+            queryProductAndAddToSettlement(barcode);
         }
 
         @Override
         public void possibleResultPoints(List<ResultPoint> resultPoints) { }
     };
 
-    private boolean queryProductAndAddToSettlement(String barcode) {
-        Product product = dbHelper.getProductByBarcode(barcode);
-        if (product == null) {
-            // 未找到商品时，仅提示，不打断扫码
-            // 这里使用 runOnUiThread 确保 Toast 在主线程显示
-            requireActivity().runOnUiThread(() ->
-                    Toast.makeText(requireContext(), "未找到商品：" + barcode, Toast.LENGTH_SHORT).show()
-            );
-            return false;
-        }
+    private void queryProductAndAddToSettlement(String barcode) {
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            Product product = productViewModel.getProductByBarcodeSync(barcode);
+            requireActivity().runOnUiThread(() -> {
+                if (product == null) {
+                    Toast.makeText(requireContext(), "未找到商品：" + barcode, Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-        boolean productFound = false;
-        for (CartItem cartItem : settlementList) {
-            if (cartItem.getProduct().getBarcode().equals(barcode)) {
-                cartItem.incrementQuantity();
-                productFound = true;
-                break;
-            }
-        }
+                boolean productFound = false;
+                for (CartItem cartItem : settlementList) {
+                    if (cartItem.getProduct().getBarcode().equals(barcode)) {
+                        cartItem.incrementQuantity();
+                        productFound = true;
+                        break;
+                    }
+                }
 
-        if (!productFound) {
-            // 新商品添加到列表最前面，方便用户看到
-            settlementList.add(0, new CartItem(product));
-        }
+                if (!productFound) {
+                    // 新商品添加到列表最前面，方便用户看到
+                    settlementList.add(0, new CartItem(product));
+                }
 
-        calculateTotalPrice();
-        settlementAdapter.notifyDataSetChanged();
-        updateTotalPrice();
+                calculateTotalPrice();
+                settlementAdapter.notifyDataSetChanged();
+                updateTotalPrice();
 
-        // 更新状态提示
-        tvScanStatus.setText("已添加：" + product.getName());
+                // 更新状态提示
+                tvScanStatus.setText("已添加：" + product.getName());
 
-        // 自动滚动到列表顶部，让用户看到最新添加的商品
-        // 因为我们将新商品添加到了 list.add(0, ...)，所以滚动到 0
-        lvSettlementList.smoothScrollToPosition(0);
-
-        return true;
+                // 自动滚动到列表顶部，让用户看到最新添加的商品
+                lvSettlementList.smoothScrollToPosition(0);
+                playBeepAndVibrate();
+            });
+        });
     }
 
     @Override
@@ -270,7 +266,6 @@ public class SettlementFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        dbHelper.close();
         if (toneGenerator != null) {
             toneGenerator.release();
             toneGenerator = null;
@@ -312,25 +307,24 @@ public class SettlementFragment extends Fragment {
                 .setTitle("确认结算")
                 .setMessage("合计金额：" + String.format("%.2f元", totalPrice) + "，是否确认结算？")
                 .setPositiveButton("确认", (dialog, which) -> {
-                    boolean allSuccess = true;
-                    for (CartItem cartItem : settlementList) {
-                        Product product = cartItem.getProduct();
-                        int newStock = product.getStock() - cartItem.getQuantity();
-                        if (!dbHelper.updateProductStock(product.getBarcode(), newStock)) {
-                            allSuccess = false;
-                            break;
+                    AppDatabase.databaseWriteExecutor.execute(() -> {
+                        ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                        boolean allSuccess = true;
+                        for (CartItem cartItem : settlementList) {
+                            Product product = cartItem.getProduct();
+                            int newStock = product.getStock() - cartItem.getQuantity();
+                            product.setStock(newStock);
+                            dao.update(product);
                         }
-                    }
-                    if (allSuccess) {
-                        Toast.makeText(requireContext(), "结算成功！", Toast.LENGTH_SHORT).show();
-                        settlementList.clear();
-                        totalPrice = 0.0;
-                        settlementAdapter.notifyDataSetChanged();
-                        updateTotalPrice();
-                        tvScanStatus.setText("结算完成");
-                    } else {
-                        Toast.makeText(requireContext(), "部分商品库存更新失败", Toast.LENGTH_SHORT).show();
-                    }
+                        requireActivity().runOnUiThread(() -> {
+                            Toast.makeText(requireContext(), "结算成功！", Toast.LENGTH_SHORT).show();
+                            settlementList.clear();
+                            totalPrice = 0.0;
+                            settlementAdapter.notifyDataSetChanged();
+                            updateTotalPrice();
+                            tvScanStatus.setText("结算完成");
+                        });
+                    });
                 })
                 .setNegativeButton("取消", null)
                 .show();

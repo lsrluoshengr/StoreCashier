@@ -22,10 +22,12 @@ import com.journeyapps.barcodescanner.CaptureActivity;
 import com.journeyapps.barcodescanner.ScanOptions;
 
 
+import androidx.lifecycle.ViewModelProvider;
+
 public class AddProductFragment extends Fragment {
     private EditText etBarcode, etProductName, etProductPrice, etProductStock;
     private Button btnScanBarcode, btnSaveProduct;
-    private DBHelper dbHelper;
+    private ProductViewModel productViewModel;
     // 相机权限请求码
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
     // 扫码请求码
@@ -36,7 +38,7 @@ public class AddProductFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_add_product, container, false);
         initViews(view);
-        dbHelper = new DBHelper(requireContext());
+        productViewModel = new ViewModelProvider(requireActivity()).get(ProductViewModel.class);
         return view;
     }
 
@@ -117,20 +119,22 @@ public class AddProductFragment extends Fragment {
             return;
         }
 
-        // 在后台线程执行数据库操作
-        new Thread(() -> {
-            Product product = new Product(barcode, name, price, stock);
-            boolean isSaved = dbHelper.addProduct(product);
-
-            requireActivity().runOnUiThread(() -> {
-                if (isSaved) {
+        // 使用 Room 后台操作
+        AppDatabase.databaseWriteExecutor.execute(() -> {
+            Product existing = productViewModel.getProductByBarcodeSync(barcode);
+            if (existing != null) {
+                requireActivity().runOnUiThread(() -> 
+                    Toast.makeText(requireContext(), "该条形码已存在，请勿重复录入", Toast.LENGTH_SHORT).show()
+                );
+            } else {
+                Product product = new Product(barcode, name, price, stock);
+                productViewModel.insert(product);
+                requireActivity().runOnUiThread(() -> {
                     Toast.makeText(requireContext(), "商品录入成功！", Toast.LENGTH_SHORT).show();
                     clearInput();
-                } else {
-                    Toast.makeText(requireContext(), "该条形码已存在，请勿重复录入", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }).start();
+                });
+            }
+        });
     }
 
     private void clearInput() {
@@ -144,8 +148,5 @@ public class AddProductFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (dbHelper != null) {
-            dbHelper.close();
-        }
     }
 }

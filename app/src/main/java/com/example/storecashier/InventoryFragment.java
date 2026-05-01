@@ -20,11 +20,13 @@ import androidx.fragment.app.Fragment;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.lifecycle.ViewModelProvider;
+
 public class InventoryFragment extends Fragment {
     private ListView lvProductInventory;
-    private List<Product> productList;
+    private List<Product> productList = new ArrayList<>();
     private ProductAdapter productAdapter;
-    private DBHelper dbHelper;
+    private ProductViewModel productViewModel;
     private Button btnManage;
 
     // 管理模式状态
@@ -37,13 +39,20 @@ public class InventoryFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_inventory, container, false);
 
-        // 初始化控件和数据库
+        // 初始化控件和ViewModel
         lvProductInventory = view.findViewById(R.id.lv_product_inventory);
         btnManage = view.findViewById(R.id.btn_manage);
-        dbHelper = new DBHelper(requireContext());
+        productViewModel = new ViewModelProvider(requireActivity()).get(ProductViewModel.class);
 
-        // 加载商品列表
-        loadProductList();
+        // 初始化适配器
+        productAdapter = new ProductAdapter();
+        lvProductInventory.setAdapter(productAdapter);
+
+        // 观察商品列表变化
+        productViewModel.getAllProducts().observe(getViewLifecycleOwner(), products -> {
+            productList = products;
+            productAdapter.notifyDataSetChanged();
+        });
 
         // 长按商品自由编辑
         lvProductInventory.setOnItemLongClickListener((parent, view1, position, id) -> {
@@ -60,9 +69,7 @@ public class InventoryFragment extends Fragment {
 
     // 加载所有商品到列表
     private void loadProductList() {
-        productList = dbHelper.getAllProducts();
-        productAdapter = new ProductAdapter();
-        lvProductInventory.setAdapter(productAdapter);
+        // 使用 LiveData，不再需要手动加载
     }
 
     // 切换管理模式
@@ -91,16 +98,24 @@ public class InventoryFragment extends Fragment {
                 .setMessage("确定要删除选中的" + selectedProducts.size() + "个商品吗？")
                 .setPositiveButton("删除", (dialog, which) -> {
                     // 执行删除操作
-                    for (Product product : selectedProducts) {
-                        dbHelper.deleteProduct(product.getBarcode());
-                    }
-                    // 刷新商品列表
-                    loadProductList();
+                    AppDatabase.databaseWriteExecutor.execute(() -> {
+                        ProductDao dao = AppDatabase.getDatabase(requireContext()).productDao();
+                        for (Product product : selectedProducts) {
+                            dao.delete(product);
+                        }
+                    });
                     Toast.makeText(requireContext(), "删除成功！", Toast.LENGTH_SHORT).show();
                     // 重置选中列表
                     selectedProducts.clear();
+                    isManageMode = false;
+                    btnManage.setText("管理");
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton("取消", (dialog, which) -> {
+                    isManageMode = false;
+                    btnManage.setText("管理");
+                    selectedProducts.clear();
+                    productAdapter.notifyDataSetChanged();
+                })
                 .show();
     }
 
@@ -132,14 +147,9 @@ public class InventoryFragment extends Fragment {
                         return;
                     }
                     // 更新库存到数据库
-                    boolean isUpdated = dbHelper.updateProductStock(product.getBarcode(), newStock);
-                    if (isUpdated) {
-                        Toast.makeText(requireContext(), "库存更新成功", Toast.LENGTH_SHORT).show();
-                        product.setStock(newStock); // 更新列表数据
-                        productAdapter.notifyDataSetChanged(); // 刷新列表
-                    } else {
-                        Toast.makeText(requireContext(), "库存更新失败", Toast.LENGTH_SHORT).show();
-                    }
+                    product.setStock(newStock);
+                    productViewModel.update(product);
+                    Toast.makeText(requireContext(), "库存更新成功", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -191,17 +201,11 @@ public class InventoryFragment extends Fragment {
                         }
 
                         // 更新商品信息到数据库
-                        boolean isUpdated = dbHelper.updateProduct(product.getBarcode(), name, price, stock);
-                        if (isUpdated) {
-                            // 更新列表中的商品信息
-                            product.setName(name);
-                            product.setPrice(price);
-                            product.setStock(stock);
-                            productAdapter.notifyDataSetChanged();
-                            Toast.makeText(requireContext(), "商品信息更新成功", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(requireContext(), "商品信息更新失败", Toast.LENGTH_SHORT).show();
-                        }
+                        product.setName(name);
+                        product.setPrice(price);
+                        product.setStock(stock);
+                        productViewModel.update(product);
+                        Toast.makeText(requireContext(), "商品信息更新成功", Toast.LENGTH_SHORT).show();
 
                     } catch (NumberFormatException e) {
                         Toast.makeText(requireContext(), "价格或库存格式错误", Toast.LENGTH_SHORT).show();
@@ -215,7 +219,7 @@ public class InventoryFragment extends Fragment {
     private class ProductAdapter extends BaseAdapter {
         @Override
         public int getCount() {
-            return productList.size();
+            return productList == null ? 0 : productList.size();
         }
 
         @Override
@@ -259,7 +263,6 @@ public class InventoryFragment extends Fragment {
                 holder.cbSelect.setChecked(selectedProducts.contains(product));
 
                 // 保存当前位置和产品引用，用于点击事件
-                int finalPosition = position;
                 Product finalProduct = product;
 
                 // 复选框点击事件
@@ -294,12 +297,10 @@ public class InventoryFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        loadProductList(); // 每次回到该Fragment时刷新商品列表
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        dbHelper.close();
     }
 }
